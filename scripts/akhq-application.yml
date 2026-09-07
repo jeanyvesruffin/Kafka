@@ -1,0 +1,9 @@
+# A copier dans le repertoire d'AKHQ, a cote du JAR.
+micronaut:
+  server:
+    port: 8090
+akhq:
+  connections:
+    orderflow-local:
+      properties:
+        bootstrap.servers: "localhost:9092"

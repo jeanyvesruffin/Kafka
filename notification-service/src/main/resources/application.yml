@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: notification-service
+
+server:
+  port: 8084
+
+orderflow:
+  messaging:
+    # 'logging' : pas de broker, les evenements sont traces dans la console.
+    # Passe a 'kafka' quand ton KafkaEventPublisher existe.
+    publisher: logging
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+
+logging:
+  level:
+    fr.orderflow: DEBUG

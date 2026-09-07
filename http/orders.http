@@ -1,0 +1,64 @@
+### Parcours nominal : sku-001 x2 = 39,80 EUR -> doit finir CONFIRMED
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+X-Correlation-Id: corr-demo-nominal
+
+{
+  "customerId": "cust-118",
+  "items": [
+    { "productId": "sku-001", "quantity": 2 }
+  ]
+}
+
+### Parcours refus paiement : sku-005 x1 = 1250,00 EUR > plafond 1000
+### -> CANCELLED, avec compensation du stock deja reserve
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+X-Correlation-Id: corr-demo-paiement-ko
+
+{
+  "customerId": "cust-118",
+  "items": [
+    { "productId": "sku-005", "quantity": 1 }
+  ]
+}
+
+### Parcours rejet stock : sku-005 x5 alors qu'il n'y en a que 2
+### -> CANCELLED, sans compensation (rien n'avait ete reserve)
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+X-Correlation-Id: corr-demo-stock-ko
+
+{
+  "customerId": "cust-118",
+  "items": [
+    { "productId": "sku-005", "quantity": 5 }
+  ]
+}
+
+### Commande multi-lignes
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+
+{
+  "customerId": "cust-42",
+  "items": [
+    { "productId": "sku-001", "quantity": 1 },
+    { "productId": "sku-003", "quantity": 4 }
+  ]
+}
+
+### Consulter une commande (remplace l'id)
+GET http://localhost:8081/api/orders/ord-xxxxxxxx
+
+### Lister toutes les commandes
+GET http://localhost:8081/api/orders
+
+### Lister les commandes annulees
+GET http://localhost:8081/api/orders?status=CANCELLED
+
+### Etat du stock (service Inventory)
+GET http://localhost:8082/api/stock
+
+### Sante des services
+GET http://localhost:8081/actuator/health

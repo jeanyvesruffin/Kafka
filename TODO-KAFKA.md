@@ -1,0 +1,112 @@
+# TODO Kafka — ce qu'il te reste à implémenter
+
+Le squelette livré tourne **de bout en bout sans broker** : la logique métier,
+la persistance, l'outbox, l'idempotence et les compensations sont écrites et
+testées. Seule la couche transport est absente.
+
+Tout ce que tu as à écrire tient dans **cinq packages `messaging`**, aujourd'hui
+vides. Chacun contient un `package-info.java` qui détaille précisément quoi y
+mettre, avec des exemples de code.
+
+---
+
+## Le point d'extension unique
+
+```
+fr.orderflow.common.messaging.EventPublisher         ← l'interface (1 méthode)
+fr.orderflow.common.messaging.LoggingEventPublisher  ← l'implémentation actuelle
+fr.orderflow.common.config.MessagingConfig           ← qui choisit laquelle
+```
+
+La bascule tient en deux gestes :
+
+1. écrire un `KafkaEventPublisher implements EventPublisher` annoté `@Component` ;
+2. mettre `orderflow.messaging.publisher: kafka` dans l'`application.yml` du service.
+
+Le publisher de log n'est alors plus créé, et **le reste du projet se met à
+publier pour de vrai sans qu'une seule autre ligne ne bouge.**
+
+C'est le test de la qualité du découplage : si tu dois modifier autre chose que
+ce bean pour brancher Kafka, quelque chose fuit.
+
+> Le choix passe par une propriété et non par `@ConditionalOnMissingBean` sur un
+> `@Component` : cette annotation est évaluée pendant le scan de composants, dans
+> un ordre non garanti, et donnerait un résultat instable selon le nom de tes
+> packages. Elle n'est fiable que dans une classe d'auto-configuration.
+
+---
+
+## Étapes
+
+### Phase 1 — Premier flux Order → Inventory
+
+- [ ] Décommenter `spring-boot-starter-kafka` dans `order-service/pom.xml` et `inventory-service/pom.xml`
+- [ ] Décommenter le bloc `spring.kafka` dans `order-service/src/main/resources/application.yml`
+- [ ] Écrire `fr.orderflow.order.messaging.KafkaEventPublisher implements EventPublisher`
+- [ ] Basculer `orderflow.messaging.publisher` sur `kafka` dans les `application.yml` concernés
+- [ ] Déclarer les topics via des beans `NewTopic` (⚠️ `replicationFactor = 1` en local mono-nœud)
+- [ ] Écrire `fr.orderflow.inventory.messaging.OrderEventListener` → appelle `inventoryService.handleOrderCreated(...)`
+- [ ] Écrire `KafkaEventPublisher` côté inventory également
+
+**Validé quand** : un `POST /api/orders` fait bouger le stock dans `GET /api/stock`,
+et que tu vois les messages passer dans AKHQ.
+
+### Phase 2 — Payment + saga complète
+
+- [ ] `fr.orderflow.payment.messaging.InventoryEventListener` → `paymentService.handleInventoryReserved(...)`
+- [ ] `fr.orderflow.order.messaging.*Listener` pour les 4 topics consommés par order-service
+- [ ] `fr.orderflow.notification.messaging.*Listener` pour les 2 topics terminaux
+
+**Validé quand** : commander `sku-001 x2` aboutit à `CONFIRMED`, et commander
+`sku-005 x1` (1250,00 € > plafond) aboutit à `CANCELLED` **avec le stock libéré**.
+
+### Phase 3 — Vérifier l'outbox et l'idempotence sous Kafka
+
+- [ ] Arrêter le broker, poster 3 commandes, le redémarrer → les 3 événements doivent partir
+- [ ] Rejouer manuellement un message depuis AKHQ → le stock ne doit pas bouger deux fois
+
+Rien à coder ici : les garanties sont déjà en place. L'exercice est de **prouver
+qu'elles tiennent** face à un vrai broker.
+
+### Phase 4 — Retry et Dead Letter Topic
+
+- [ ] `ErrorHandlingDeserializer` sur tous les consumers
+- [ ] `DefaultErrorHandler` ou `@RetryableTopic` avec backoff exponentiel
+- [ ] Classer les exceptions : `DeserializationException` → DLT immédiat,
+      `OptimisticLockingFailureException` → retryable
+- [ ] Injecter une panne transitoire dans `PaymentGatewaySimulator` pour observer les retries
+
+### Phase 5 — Observabilité
+
+- [ ] Propager le `correlationId` de l'en-tête Kafka vers le MDC
+- [ ] Vérifier le lag des consumer groups via `/actuator/metrics` et AKHQ
+- [ ] Brancher le tracing (l'instrumentation Kafka est automatique en Boot 4.1)
+
+### Phase 7 — Avro
+
+- [ ] `avro-maven-plugin`, schémas `.avsc` dans `orderflow-common`
+- [ ] Remplacer `EventSerializer` par une variante Avro
+- [ ] Ajouter un champ optionnel et vérifier la compatibilité `BACKWARD`
+
+### Phases 8-9 — Bonus
+
+Kafka Streams, exactly-once transactionnel, chaos testing, virtual threads.
+
+---
+
+## Ce que le squelette te donne déjà, ne le réécris pas
+
+| Besoin | Où c'est déjà fait |
+|---|---|
+| Contrats d'événements | `orderflow-common` — `sealed interface OrderFlowEvent` + 7 records |
+| Noms de topics | `Topics` — aucune chaîne en dur ailleurs |
+| Sérialisation JSON | `EventSerializer` (Jackson 3 / `JsonMapper`) |
+| Outbox transactionnel | `OutboxEventEntity` + `OutboxRelay` |
+| Idempotence consumer | `ProcessedEventEntity` (inventory, payment) |
+| Machine à états commande | `OrderEntity.transitionTo(...)` — refuse de quitter un état terminal |
+| Compensation stock | `InventoryService.handleOrderCancelled(...)` |
+| Verrouillage concurrent | `@Version` sur `StockEntity` |
+
+**Règle** : un listener ne contient jamais de logique métier. Il désérialise et
+délègue. Si tu ressens le besoin d'un `if` métier dans un listener, c'est qu'une
+méthode manque dans le service.

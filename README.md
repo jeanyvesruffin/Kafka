@@ -1,6 +1,10 @@
 # Kafka
 
-## Définitions & concepts
+<details>
+<summary>Définitions & concepts</summary>
+
+Voici le contenu masqué par défaut.
+Tu peux y mettre du **texte**, des *listes* ou du `code`.
 
 * `Event`: 
     * Description d'une action (ex métier: passage d'une commande, d'un payement, via un site e-commerce)
@@ -95,3 +99,175 @@ bin\windows\kafka-storage.bat format --standalone -t %KAFKA_CLUSTER_ID% -c confi
 | `broker.id` | Identifiant du broker pour ce serveur. | int | `-1` |
 | `advertised.listeners` | Adresses des listeners que les brokers annoncent aux clients et aux autres brokers — utile quand `listeners` ne représente pas les adresses réellement joignables par les clients (ex. environnements cloud/NAT). Si absent, la valeur de `listeners` est utilisée. Contrairement à `listeners`, ne peut pas annoncer l'adresse méta `0.0.0.0`. | list | `null` |
 | `delete.topic.enable` | Quand `true`, les topics peuvent être supprimés via l'admin client ; quand `false`, les requêtes de suppression sont explicitement rejetées par le broker. | boolean | `true` |
+
+</details>
+
+
+## TD
+
+<details>
+<summary>Travaux Dirigés</summary>
+
+
+# OrderFlow — squelette sans Kafka
+
+Cas d'école événementiel. **Toute la logique métier est écrite et testée ; la
+couche Kafka est à toi.** Voir [`TODO-KAFKA.md`](TODO-KAFKA.md).
+
+- **Java 21** · **Spring Boot 4.1.1** · **H2 embarqué** · **Maven**
+- Aucune dépendance à Docker, à un broker ou à un serveur de base de données
+- Tout tourne depuis le répertoire utilisateur, sans droits administrateur
+
+---
+
+## Démarrer
+
+### Prérequis : un JDK 21
+
+Archive `.zip` (Windows) ou `.tar.gz` (Linux, macOS) d'Eclipse Temurin 21,
+décompressée dans ton répertoire utilisateur. Pas d'installeur.
+
+```bash
+java -version   # doit afficher 21.x
+```
+
+### Prérequis : Maven
+
+Le projet est livré **sans Maven Wrapper**, pour ne pas embarquer un script
+que je n'ai pas pu tester. Deux options, toutes deux sans droits admin :
+
+1. **Maven portable** — décompresser `apache-maven-3.9.16-bin.zip` et ajouter
+   son `bin` au `PATH` utilisateur.
+2. **Générer le wrapper** une fois Maven disponible, puis n'utiliser que lui :
+   ```bash
+   mvn -N wrapper:wrapper -Dmaven=3.9.16
+   ```
+   Tu obtiens `mvnw` / `mvnw.cmd`, et Maven n'a plus besoin d'être installé.
+
+> Si ton réseau d'entreprise filtre Maven Central, configure le proxy dans
+> `~/.m2/settings.xml` avant la première build. C'est le blocage le plus
+> fréquent sur poste bridé.
+
+### Compiler et tester
+
+```bash
+mvn clean verify
+```
+
+Aucun service externe n'est nécessaire : les tests sont des tests unitaires purs,
+sans contexte Spring, sans base, sans broker.
+
+### Lancer
+
+Quatre terminaux, ou lance seulement ce dont tu as besoin :
+
+```bash
+mvn -pl order-service        spring-boot:run   # :8081
+mvn -pl inventory-service    spring-boot:run   # :8082
+mvn -pl payment-service      spring-boot:run   # :8083
+mvn -pl notification-service spring-boot:run   # :8084
+```
+
+### Essayer
+
+```bash
+curl -X POST http://localhost:8081/api/orders -H "Content-Type: application/json" -d "{"customerId":"cust-118","items":[{"productId":"sku-001","quantity":2}]}"
+```
+
+Dans la console d'`order-service`, tu verras la ligne d'outbox partir :
+
+```
+[NO-BROKER] topic=orders.created key=ord-3f2a1b8c headers={eventId=..., eventType=OrderCreated, ...} payload={...}
+```
+
+C'est exactement le message que Kafka transportera : topic, clé de partition,
+en-têtes, payload. Il ne va nulle part aujourd'hui — c'est ce que tu vas
+brancher, en écrivant un `EventPublisher` et en basculant la propriété
+`orderflow.messaging.publisher` sur `kafka`.
+
+Voir aussi les requêtes prêtes à l'emploi dans [`http/`](http/).
+
+---
+
+## Architecture
+
+```
+orderflow-common/          Contrats partagés : événements, topics, port EventPublisher
+order-service/       :8081 Source de vérité de la commande + outbox transactionnel
+inventory-service/   :8082 Réservation, rejet, compensation du stock
+payment-service/     :8083 Encaissement simulé (déterministe)
+notification-service/:8084 Notification client (sans état)
+```
+
+Chaque service a **sa propre base H2**, dans `~/orderflow-data/`. Aucune base
+partagée : c'est la règle qui rend l'architecture événementielle nécessaire
+plutôt que décorative.
+
+### Les deux scénarios à connaître
+
+| Commande | Résultat | Ce que ça exerce |
+|---|---|---|
+| `sku-001` × 2 → 39,80 € | `CONFIRMED` | Parcours nominal complet |
+| `sku-005` × 1 → 1250,00 € | `CANCELLED` | Refus de paiement + **compensation du stock** |
+| `sku-005` × 5 | `CANCELLED` | Rejet stock (il n'y en a que 2) — sans compensation |
+
+Le simulateur de paiement refuse au-delà de 1000 € — règle déterministe,
+configurable via `orderflow.payment.refusal-threshold`.
+
+---
+
+## Consulter les données
+
+Console H2 sur chaque service : `http://localhost:8081/h2-console`
+(JDBC URL `jdbc:h2:file:~/orderflow-data/orders`, utilisateur `sa`, pas de mot de passe).
+
+Tables intéressantes :
+- `orders`, `order_items`, **`outbox_event`** (côté order)
+- `stock`, **`processed_events`** (côté inventory)
+- `payments`, `processed_events` (côté payment)
+
+Le contenu de `outbox_event` et `processed_events` est le meilleur support pour
+comprendre les patterns avant même d'avoir branché Kafka.
+
+---
+
+## Points de vigilance Spring Boot 4
+
+Le projet cible Boot 4.1.1, qui introduit deux ruptures par rapport à Boot 3 :
+
+**Starters modulaires.** `spring-boot-starter-web` est devenu
+`spring-boot-starter-webmvc`, `spring-boot-starter-json` est devenu
+`spring-boot-starter-jackson`, et `spring-boot-starter-test` a été éclaté en
+starters par technologie. Les anciens noms existent encore mais sont dépréciés.
+Le `pom.xml` parent documente un filet de sécurité (`spring-boot-starter-classic`)
+si un starter modulaire posait problème.
+
+**Jackson 3.** Le bean auto-configuré n'est plus
+`com.fasterxml.jackson.databind.ObjectMapper` mais
+`tools.jackson.databind.json.JsonMapper`, immuable et thread-safe. Les exceptions
+sont non checkées, et les types `java.time` sont sérialisés en ISO-8601
+nativement, sans module à enregistrer. Les annotations, elles, restent dans
+`com.fasterxml.jackson.annotation`.
+
+**Côté tests**, si tu ajoutes des tranches (`@WebMvcTest`, `@DataJpaTest`), sache
+que `@MockBean` a disparu au profit de `@MockitoBean`, que `@SpringBootTest` ne
+configure plus MockMvc automatiquement, et que `@WebMvcTest` demande désormais le
+starter `spring-boot-starter-webmvc-test`. Les tests livrés évitent
+volontairement ces API : ce sont des tests unitaires purs, JUnit 5 + Mockito.
+
+---
+
+## Honnêteté sur ce livrable
+
+Je n'ai **pas pu compiler ce projet** : mon environnement n'a pas accès à Maven
+Central. Le code est écrit avec soin et les versions sont vérifiées, mais la
+zone la plus susceptible de demander un ajustement est le nom exact de certains
+starters Boot 4 dans les `pom.xml`. Si un starter ne résout pas, le bloc
+`spring-boot-starter-classic` documenté dans le pom parent te débloque en une
+minute.
+
+La logique métier, elle, est du Java standard et ne dépend d'aucune de ces
+subtilités.
+
+</details>
+

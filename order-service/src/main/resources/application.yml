@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: order-service
+
+  datasource:
+    url: jdbc:h2:file:~/Users/jeanyves.ruffin/orderflow-data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+server:
+  port: 8081
+
+orderflow:
+  messaging:
+    # 'logging' : pas de broker, les evenements sont traces dans la console.
+    # Passe a 'kafka' quand ton KafkaEventPublisher existe.
+    publisher: logging
+  outbox:
+    poll-interval-ms: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    fr.orderflow: DEBUG
+
+# ============================================================
+# A DECOMMENTER QUAND TU BRANCHERAS KAFKA
+# ============================================================
+# spring:
+#   kafka:
+#     bootstrap-servers: localhost:9092
+#     producer:
+#       key-serializer: org.apache.kafka.common.serialization.StringSerializer
+#       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+#       acks: all
+#       properties:
+#         enable.idempotence: true
+#     consumer:
+#       group-id: order-service
+#       auto-offset-reset: earliest
+#       enable-auto-commit: false
+#       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+#       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+#     listener:
+#       ack-mode: record
