@@ -52,6 +52,7 @@
          A DECOMMENTER QUAND TU BRANCHERAS KAFKA (phase 1 du TODO)
          Rappel Boot 4 : le starter Kafka doit etre declare explicitement.
          ================================================================
+    -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-kafka</artifactId>
@@ -61,8 +62,6 @@
       <artifactId>spring-kafka-test</artifactId>
       <scope>test</scope>
     </dependency>
-    -->
-
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
