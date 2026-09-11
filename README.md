@@ -410,8 +410,10 @@ public class InventoryEventListen {
 ```
 
 * Ajout des `Topics` :
-    * Les noms de Topics (String) doivent être déclarés dans un fichier de constantes. Dans notre cas, dans le module
-      common, exemple de déclaration :
+    * Les noms de `Topics` (String) doivent être déclarés dans un fichier de constantes. Dans notre cas, dans le module
+      common.
+    * Pour déclarer plusieurs topics dans un seul bean, utiliser `KafkaAdmin.NewTopics`.
+    * exemple de déclaration des `Topics` suivi d'un exemple de déclaration de plusieurs `Topics` dans un seul bean :
 
 ```java
 public final class Topics {
@@ -429,7 +431,44 @@ public final class Topics {
 }
 ```
 
-*
-    *
+```java
+
+@Configuration
+public class KafkaTopicsOrderConfig {
+
+    private static final int PARTITIONS = 3;
+    private static final int REPLICAS = 1; // un seul broker en local
+
+    @Bean
+    public KafkaAdmin.NewTopics orderTopics() {
+        return new KafkaAdmin.NewTopics(
+                TopicBuilder.name(Topics.ORDERS_CREATED)
+                        .partitions(PARTITIONS)
+                        .replicas(REPLICAS)
+                        .build(),
+                TopicBuilder.name(Topics.ORDERS_CONFIRMED)
+                        .partitions(PARTITIONS)
+                        .replicas(REPLICAS)
+                        .build(),
+                TopicBuilder.name(Topics.ORDERS_CANCELLED)
+                        .partitions(PARTITIONS)
+                        .replicas(REPLICAS)
+                        .build());
+    }
+}
+```
+
+> Pourquoi 3 partitions plutôt que 10
+> Parallélisme : dans un consumer group, une partition n'est lue que par un seul consumer. Le nombre de partitions fixe
+> donc le nombre maximum d'instances d'un service qui peuvent travailler en parallèle. Pour le TD, 3 suffit, et c'est la
+> valeur par défaut de ton broker (num.partitions=3).
+> Ordre : la clé du message est l'`event.orderId`. Tous les événements d'une même commande 
+> vont
+> donc dans la même partition, dans l'ordre.
+> **⚠️Attention ⚠️** : on peut augmenter le nombre de partitions plus tard, mais jamais le diminuer. Et l'augmenter 
+> change la
+> partition associée à chaque clé.
+
+
 
 </details>

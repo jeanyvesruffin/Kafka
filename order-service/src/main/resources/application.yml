@@ -37,6 +37,8 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       ack-mode: record
+    admin:
+      fail-fast: true
 
 server:
   port: 8081

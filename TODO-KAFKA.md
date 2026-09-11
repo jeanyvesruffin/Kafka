@@ -46,7 +46,7 @@ ce bean pour brancher Kafka, quelque chose fuit.
 - [x] Basculer `orderflow.messaging.publisher` sur `kafka` dans les `application.yml` concernés
 - [x] Déclarer les topics via des beans `NewTopic` (⚠️ `replicationFactor = 1` en local mono-nœud)
 - [x] Écrire `fr.orderflow.inventory.messaging.OrderEventListener` → appelle `inventoryService.handleOrderCreated(...)`
-- [x] Écrire `KafkaEventPublisher` côté inventory également
+- [x] Écrire `KafkaEventOrderPublisher` côté inventory également
 
 **Validé quand** : un `POST /api/orders` fait bouger le stock dans `GET /api/stock`,
 et que tu vois les messages passer dans AKHQ.

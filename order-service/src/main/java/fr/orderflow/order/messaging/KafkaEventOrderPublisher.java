@@ -10,11 +10,11 @@ import java.nio.charset.StandardCharsets;
 
 
 @Component
-public class KafkaEventPublisher implements EventPublisher {
+public class KafkaEventOrderPublisher implements EventPublisher {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public KafkaEventPublisher(KafkaTemplate<String, String> kafkaTemplate) {
+    public KafkaEventOrderPublisher(KafkaTemplate<String, String> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 
