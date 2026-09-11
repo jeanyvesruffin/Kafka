@@ -1,10 +1,6 @@
 package fr.orderflow.inventory.service;
 
-import fr.orderflow.common.event.InventoryRejectedEvent;
-import fr.orderflow.common.event.InventoryReservedEvent;
-import fr.orderflow.common.event.OrderCancelledEvent;
-import fr.orderflow.common.event.OrderCreatedEvent;
-import fr.orderflow.common.event.OrderLine;
+import fr.orderflow.common.event.*;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
@@ -12,16 +8,17 @@ import fr.orderflow.inventory.domain.ProcessedEventEntity;
 import fr.orderflow.inventory.domain.StockEntity;
 import fr.orderflow.inventory.repository.ProcessedEventRepository;
 import fr.orderflow.inventory.repository.StockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Gestion du stock : reservation, rejet, compensation.
@@ -59,6 +56,11 @@ public class InventoryService {
         this.clock = clock;
     }
 
+    private static String newEventId() {
+        return UUID.randomUUID()
+                .toString();
+    }
+
     /**
      * Reagit a {@code OrderCreated} : tente de reserver le stock de toutes les
      * lignes. Tout ou rien — une seule ligne indisponible fait echouer la
@@ -78,7 +80,8 @@ public class InventoryService {
         if (unavailable.isPresent()) {
             String reason = "Stock insuffisant pour le produit " + unavailable.get();
             log.info("Reservation refusee orderId={} raison={}", event.orderId(), reason);
-            publish(Topics.INVENTORY_REJECTED,
+            publish(
+                    Topics.INVENTORY_REJECTED,
                     new InventoryRejectedEvent(newEventId(), event.orderId(), reason, now),
                     correlationId);
             return;
@@ -90,9 +93,15 @@ public class InventoryService {
                     .reserve(line.quantity());
         }
 
-        log.info("Stock reserve orderId={} lignes={}", event.orderId(), event.items().size());
-        publish(Topics.INVENTORY_RESERVED,
-                new InventoryReservedEvent(newEventId(), event.orderId(), event.customerId(),
+        log.info(
+                "Stock reserve orderId={} lignes={}",
+                event.orderId(),
+                event.items()
+                        .size());
+        publish(
+                Topics.INVENTORY_RESERVED,
+                new InventoryReservedEvent(
+                        newEventId(), event.orderId(), event.customerId(),
                         event.items(), event.totalAmount(), now),
                 correlationId);
     }
@@ -123,18 +132,19 @@ public class InventoryService {
         log.info("Stock libere (compensation) orderId={} raison={}", event.orderId(), event.reason());
     }
 
+    // ------------------------------------------------------------------
+
     @Transactional(readOnly = true)
     public List<StockEntity> findAllStock() {
         return stockRepository.findAll();
     }
 
-    // ------------------------------------------------------------------
-
     private Optional<String> firstUnavailableProduct(List<OrderLine> items) {
         List<String> problems = new ArrayList<>();
         for (OrderLine line : items) {
             Optional<StockEntity> stock = stockRepository.findById(line.productId());
-            if (stock.isEmpty() || !stock.get().canReserve(line.quantity())) {
+            if (stock.isEmpty() || !stock.get()
+                    .canReserve(line.quantity())) {
                 problems.add(line.productId());
             }
         }
@@ -151,9 +161,5 @@ public class InventoryService {
 
     private void publish(String topic, fr.orderflow.common.event.OrderFlowEvent event, String correlationId) {
         eventPublisher.publish(eventSerializer.envelope(topic, event, correlationId));
-    }
-
-    private static String newEventId() {
-        return UUID.randomUUID().toString();
     }
 }

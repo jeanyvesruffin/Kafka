@@ -1,10 +1,6 @@
 package fr.orderflow.order.service;
 
-import fr.orderflow.common.event.OrderCancelledEvent;
-import fr.orderflow.common.event.OrderConfirmedEvent;
-import fr.orderflow.common.event.OrderCreatedEvent;
-import fr.orderflow.common.event.OrderFlowEvent;
-import fr.orderflow.common.event.OrderLine;
+import fr.orderflow.common.event.*;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
 import fr.orderflow.order.api.CreateOrderRequest;
@@ -14,15 +10,16 @@ import fr.orderflow.order.domain.OrderStatus;
 import fr.orderflow.order.domain.OutboxEventEntity;
 import fr.orderflow.order.repository.OrderRepository;
 import fr.orderflow.order.repository.OutboxEventRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Source de verite de la commande.
@@ -64,12 +61,25 @@ public class OrderService {
     // Commande entrante (API REST)
     // ------------------------------------------------------------------
 
+    private static String newEventId() {
+        return UUID.randomUUID()
+                .toString();
+    }
+
+    // ------------------------------------------------------------------
+    // Reactions aux evenements des autres services
+    // (a appeler depuis tes futurs @KafkaListener)
+    // ------------------------------------------------------------------
+
     @Transactional
     public OrderEntity createOrder(CreateOrderRequest request, String correlationId) {
         Instant now = clock.instant();
-        String orderId = "ord-" + UUID.randomUUID().toString().substring(0, 8);
+        String orderId = "ord-" + UUID.randomUUID()
+                .toString()
+                .substring(0, 8);
 
-        List<OrderLine> lines = request.items().stream()
+        List<OrderLine> lines = request.items()
+                .stream()
                 .map(i -> new OrderLine(i.productId(), i.quantity(), priceCatalog.priceOf(i.productId())))
                 .toList();
 
@@ -79,22 +89,21 @@ public class OrderService {
 
         OrderEntity order = new OrderEntity(orderId, request.customerId(), total, now);
         lines.forEach(line -> order.addItem(new OrderItemEntity(
-                UUID.randomUUID().toString(), line.productId(), line.quantity(), line.unitPrice())));
+                UUID.randomUUID()
+                        .toString(), line.productId(), line.quantity(), line.unitPrice())));
         orderRepository.save(order);
 
-        appendToOutbox(Topics.ORDERS_CREATED, new OrderCreatedEvent(
-                newEventId(), orderId, request.customerId(), lines, total, now), correlationId);
+        appendToOutbox(
+                Topics.ORDERS_CREATED, new OrderCreatedEvent(
+                        newEventId(), orderId, request.customerId(), lines, total, now), correlationId);
 
         log.info("Commande creee orderId={} total={} correlationId={}", orderId, total, correlationId);
         return order;
     }
 
-    // ------------------------------------------------------------------
-    // Reactions aux evenements des autres services
-    // (a appeler depuis tes futurs @KafkaListener)
-    // ------------------------------------------------------------------
-
-    /** Stock reserve : la commande avance, aucun evenement emis (Payment ecoute deja inventory.reserved). */
+    /**
+     * Stock reserve : la commande avance, aucun evenement emis (Payment ecoute deja inventory.reserved).
+     */
     @Transactional
     public void onInventoryReserved(String orderId, String correlationId) {
         OrderEntity order = load(orderId);
@@ -105,13 +114,17 @@ public class OrderService {
         }
     }
 
-    /** Stock insuffisant : annulation. Rien a compenser, aucune reservation n'a eu lieu. */
+    /**
+     * Stock insuffisant : annulation. Rien a compenser, aucune reservation n'a eu lieu.
+     */
     @Transactional
     public void onInventoryRejected(String orderId, String reason, String correlationId) {
         cancel(orderId, reason, correlationId);
     }
 
-    /** Paiement accepte : la commande est confirmee. */
+    /**
+     * Paiement accepte : la commande est confirmee.
+     */
     @Transactional
     public void onPaymentCompleted(String orderId, String correlationId) {
         OrderEntity order = load(orderId);
@@ -120,10 +133,15 @@ public class OrderService {
             log.debug("PaymentCompleted ignore (deja traite) orderId={}", orderId);
             return;
         }
-        appendToOutbox(Topics.ORDERS_CONFIRMED,
+        appendToOutbox(
+                Topics.ORDERS_CONFIRMED,
                 new OrderConfirmedEvent(newEventId(), orderId, now), correlationId);
         log.info("Commande confirmee orderId={} correlationId={}", orderId, correlationId);
     }
+
+    // ------------------------------------------------------------------
+    // Lecture
+    // ------------------------------------------------------------------
 
     /**
      * Paiement refuse : annulation + emission de {@code OrderCancelled}.
@@ -136,23 +154,19 @@ public class OrderService {
         cancel(orderId, reason, correlationId);
     }
 
-    // ------------------------------------------------------------------
-    // Lecture
-    // ------------------------------------------------------------------
-
     @Transactional(readOnly = true)
     public OrderEntity findById(String orderId) {
         return load(orderId);
     }
 
+    // ------------------------------------------------------------------
+    // Interne
+    // ------------------------------------------------------------------
+
     @Transactional(readOnly = true)
     public List<OrderEntity> findAll(OrderStatus status) {
         return status == null ? orderRepository.findAll() : orderRepository.findByStatus(status);
     }
-
-    // ------------------------------------------------------------------
-    // Interne
-    // ------------------------------------------------------------------
 
     private void cancel(String orderId, String reason, String correlationId) {
         OrderEntity order = load(orderId);
@@ -161,10 +175,12 @@ public class OrderService {
             log.debug("Annulation ignoree (deja terminal) orderId={}", orderId);
             return;
         }
-        List<OrderLine> lines = order.getItems().stream()
+        List<OrderLine> lines = order.getItems()
+                .stream()
                 .map(i -> new OrderLine(i.getProductId(), i.getQuantity(), i.getUnitPrice()))
                 .toList();
-        appendToOutbox(Topics.ORDERS_CANCELLED,
+        appendToOutbox(
+                Topics.ORDERS_CANCELLED,
                 new OrderCancelledEvent(newEventId(), orderId, lines, reason, now), correlationId);
         log.info("Commande annulee orderId={} raison={} correlationId={}", orderId, reason, correlationId);
     }
@@ -176,7 +192,8 @@ public class OrderService {
      */
     private void appendToOutbox(String topic, OrderFlowEvent event, String correlationId) {
         outboxRepository.save(new OutboxEventEntity(
-                UUID.randomUUID().toString(),
+                UUID.randomUUID()
+                        .toString(),
                 event.orderId(),
                 event.eventId(),
                 event.eventType(),
@@ -187,10 +204,7 @@ public class OrderService {
     }
 
     private OrderEntity load(String orderId) {
-        return orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
-    }
-
-    private static String newEventId() {
-        return UUID.randomUUID().toString();
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
     }
 }

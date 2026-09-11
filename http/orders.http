@@ -6,7 +6,10 @@ X-Correlation-Id: corr-demo-nominal
 {
   "customerId": "cust-118",
   "items": [
-    { "productId": "sku-001", "quantity": 2 }
+    {
+      "productId": "sku-001",
+      "quantity": 2
+    }
   ]
 }
 
@@ -19,7 +22,10 @@ X-Correlation-Id: corr-demo-paiement-ko
 {
   "customerId": "cust-118",
   "items": [
-    { "productId": "sku-005", "quantity": 1 }
+    {
+      "productId": "sku-005",
+      "quantity": 1
+    }
   ]
 }
 
@@ -32,7 +38,10 @@ X-Correlation-Id: corr-demo-stock-ko
 {
   "customerId": "cust-118",
   "items": [
-    { "productId": "sku-005", "quantity": 5 }
+    {
+      "productId": "sku-005",
+      "quantity": 5
+    }
   ]
 }
 
@@ -43,8 +52,14 @@ Content-Type: application/json
 {
   "customerId": "cust-42",
   "items": [
-    { "productId": "sku-001", "quantity": 1 },
-    { "productId": "sku-003", "quantity": 4 }
+    {
+      "productId": "sku-001",
+      "quantity": 1
+    },
+    {
+      "productId": "sku-003",
+      "quantity": 4
+    }
   ]
 }
 

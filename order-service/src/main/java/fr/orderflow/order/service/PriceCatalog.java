@@ -1,8 +1,9 @@
 package fr.orderflow.order.service;
 
+import org.springframework.stereotype.Component;
+
 import java.math.BigDecimal;
 import java.util.Map;
-import org.springframework.stereotype.Component;
 
 /**
  * Catalogue de prix bouchonne.

@@ -1,12 +1,6 @@
 package fr.orderflow.inventory.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import fr.orderflow.common.event.InventoryRejectedEvent;
-import fr.orderflow.common.event.InventoryReservedEvent;
-import fr.orderflow.common.event.OrderCancelledEvent;
-import fr.orderflow.common.event.OrderCreatedEvent;
-import fr.orderflow.common.event.OrderLine;
+import fr.orderflow.common.event.*;
 import fr.orderflow.common.messaging.EventEnvelope;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.common.messaging.EventSerializer;
@@ -15,20 +9,19 @@ import fr.orderflow.inventory.domain.ProcessedEventEntity;
 import fr.orderflow.inventory.domain.StockEntity;
 import fr.orderflow.inventory.repository.ProcessedEventRepository;
 import fr.orderflow.inventory.repository.StockRepository;
-import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class InventoryServiceTest {
 
@@ -41,6 +34,15 @@ class InventoryServiceTest {
     private InventoryService inventoryService;
     private EventSerializer eventSerializer;
 
+    private static OrderCreatedEvent orderCreated(String eventId, String productId, int quantity) {
+        OrderLine line = line(productId, quantity);
+        return new OrderCreatedEvent(eventId, "ord-1", "cust-118", List.of(line), line.lineTotal(), NOW);
+    }
+
+    private static OrderLine line(String productId, int quantity) {
+        return new OrderLine(productId, quantity, new BigDecimal("19.90"));
+    }
+
     @BeforeEach
     void setUp() {
         stock = new StockEntity("sku-001", 10);
@@ -48,20 +50,26 @@ class InventoryServiceTest {
         processedIds = new HashSet<>();
 
         var stockRepository = Mockito.mock(StockRepository.class);
-        Mockito.when(stockRepository.findById("sku-001")).thenReturn(Optional.of(stock));
-        Mockito.when(stockRepository.findById("sku-inconnu")).thenReturn(Optional.empty());
+        Mockito.when(stockRepository.findById("sku-001"))
+                .thenReturn(Optional.of(stock));
+        Mockito.when(stockRepository.findById("sku-inconnu"))
+                .thenReturn(Optional.empty());
 
         var processedRepository = Mockito.mock(ProcessedEventRepository.class);
         Mockito.when(processedRepository.existsById(Mockito.anyString()))
                 .thenAnswer(inv -> processedIds.contains(inv.getArgument(0, String.class)));
-        Mockito.when(processedRepository.save(Mockito.any())).thenAnswer(inv -> {
-            processedIds.add(inv.getArgument(0, ProcessedEventEntity.class).getEventId());
-            return inv.getArgument(0);
-        });
+        Mockito.when(processedRepository.save(Mockito.any()))
+                .thenAnswer(inv -> {
+                    processedIds.add(inv.getArgument(0, ProcessedEventEntity.class)
+                            .getEventId());
+                    return inv.getArgument(0);
+                });
 
         EventPublisher publisher = published::add;
-        eventSerializer = new EventSerializer(JsonMapper.builder().build());
-        inventoryService = new InventoryService(stockRepository, processedRepository,
+        eventSerializer = new EventSerializer(JsonMapper.builder()
+                .build());
+        inventoryService = new InventoryService(
+                stockRepository, processedRepository,
                 publisher, eventSerializer, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -73,8 +81,11 @@ class InventoryServiceTest {
         assertThat(stock.getQuantityAvailable()).isEqualTo(7);
         assertThat(stock.getQuantityReserved()).isEqualTo(3);
         assertThat(published).hasSize(1);
-        assertThat(published.getFirst().topic()).isEqualTo(Topics.INVENTORY_RESERVED);
-        assertThat(eventSerializer.fromJson(published.getFirst().payload(), InventoryReservedEvent.class)
+        assertThat(published.getFirst()
+                .topic()).isEqualTo(Topics.INVENTORY_RESERVED);
+        assertThat(eventSerializer.fromJson(
+                        published.getFirst()
+                                .payload(), InventoryReservedEvent.class)
                 .orderId()).isEqualTo("ord-1");
     }
 
@@ -86,8 +97,11 @@ class InventoryServiceTest {
         assertThat(stock.getQuantityAvailable()).isEqualTo(10);
         assertThat(stock.getQuantityReserved()).isZero();
         assertThat(published).hasSize(1);
-        assertThat(published.getFirst().topic()).isEqualTo(Topics.INVENTORY_REJECTED);
-        assertThat(eventSerializer.fromJson(published.getFirst().payload(), InventoryRejectedEvent.class)
+        assertThat(published.getFirst()
+                .topic()).isEqualTo(Topics.INVENTORY_REJECTED);
+        assertThat(eventSerializer.fromJson(
+                        published.getFirst()
+                                .payload(), InventoryRejectedEvent.class)
                 .reason()).contains("sku-001");
     }
 
@@ -102,6 +116,8 @@ class InventoryServiceTest {
         assertThat(stock.getQuantityAvailable()).isEqualTo(7);
         assertThat(published).hasSize(1);
     }
+
+    // ------------------------------------------------------------------
 
     @Test
     @DisplayName("OrderCancelled libere le stock precedemment reserve (compensation)")
@@ -124,16 +140,5 @@ class InventoryServiceTest {
 
         assertThat(stock.getQuantityAvailable()).isEqualTo(10);
         assertThat(stock.getQuantityReserved()).isZero();
-    }
-
-    // ------------------------------------------------------------------
-
-    private static OrderCreatedEvent orderCreated(String eventId, String productId, int quantity) {
-        OrderLine line = line(productId, quantity);
-        return new OrderCreatedEvent(eventId, "ord-1", "cust-118", List.of(line), line.lineTotal(), NOW);
-    }
-
-    private static OrderLine line(String productId, int quantity) {
-        return new OrderLine(productId, quantity, new BigDecimal("19.90"));
     }
 }

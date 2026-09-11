@@ -3,12 +3,13 @@ package fr.orderflow.common.config;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.LoggingEventPublisher;
-import java.time.Clock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.time.Clock;
 
 /**
  * Beans partages par tous les services.

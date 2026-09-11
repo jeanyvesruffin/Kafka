@@ -12,14 +12,15 @@ import fr.orderflow.payment.domain.PaymentStatus;
 import fr.orderflow.payment.domain.ProcessedEventEntity;
 import fr.orderflow.payment.repository.PaymentRepository;
 import fr.orderflow.payment.repository.ProcessedEventRepository;
-import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Encaissement simule.
@@ -53,6 +54,11 @@ public class PaymentService {
         this.clock = clock;
     }
 
+    private static String newEventId() {
+        return UUID.randomUUID()
+                .toString();
+    }
+
     @Transactional
     public void handleInventoryReserved(InventoryReservedEvent event, String correlationId) {
         if (processedEventRepository.existsById(event.eventId())) {
@@ -64,23 +70,31 @@ public class PaymentService {
                 new ProcessedEventEntity(event.eventId(), event.eventType(), now));
 
         var result = gateway.charge(event.orderId(), event.totalAmount());
-        String paymentId = "pay-" + UUID.randomUUID().toString().substring(0, 8);
+        String paymentId = "pay-" + UUID.randomUUID()
+                .toString()
+                .substring(0, 8);
 
         if (result.accepted()) {
-            paymentRepository.save(new PaymentEntity(paymentId, event.orderId(),
+            paymentRepository.save(new PaymentEntity(
+                    paymentId, event.orderId(),
                     PaymentStatus.COMPLETED, event.totalAmount(), null, now));
-            log.info("Paiement accepte orderId={} montant={} txn={}",
+            log.info(
+                    "Paiement accepte orderId={} montant={} txn={}",
                     event.orderId(), event.totalAmount(), result.transactionId());
-            publish(Topics.PAYMENTS_COMPLETED, new PaymentCompletedEvent(
-                    newEventId(), event.orderId(), event.totalAmount(), result.transactionId(), now),
+            publish(
+                    Topics.PAYMENTS_COMPLETED, new PaymentCompletedEvent(
+                            newEventId(), event.orderId(), event.totalAmount(), result.transactionId(), now),
                     correlationId);
         } else {
-            paymentRepository.save(new PaymentEntity(paymentId, event.orderId(),
+            paymentRepository.save(new PaymentEntity(
+                    paymentId, event.orderId(),
                     PaymentStatus.FAILED, event.totalAmount(), result.reason(), now));
-            log.info("Paiement refuse orderId={} montant={} raison={}",
+            log.info(
+                    "Paiement refuse orderId={} montant={} raison={}",
                     event.orderId(), event.totalAmount(), result.reason());
-            publish(Topics.PAYMENTS_FAILED, new PaymentFailedEvent(
-                    newEventId(), event.orderId(), event.totalAmount(), result.reason(), now),
+            publish(
+                    Topics.PAYMENTS_FAILED, new PaymentFailedEvent(
+                            newEventId(), event.orderId(), event.totalAmount(), result.reason(), now),
                     correlationId);
         }
     }
@@ -92,9 +106,5 @@ public class PaymentService {
 
     private void publish(String topic, OrderFlowEvent event, String correlationId) {
         eventPublisher.publish(eventSerializer.envelope(topic, event, correlationId));
-    }
-
-    private static String newEventId() {
-        return UUID.randomUUID().toString();
     }
 }

@@ -1,9 +1,10 @@
 package fr.orderflow.common.messaging;
 
 import fr.orderflow.common.event.OrderFlowEvent;
+import tools.jackson.databind.json.JsonMapper;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Serialisation des evenements et construction des enveloppes.
@@ -33,7 +34,9 @@ public class EventSerializer {
         return jsonMapper.readValue(json, type);
     }
 
-    /** En-tetes standards d'un evenement, correlationId compris. */
+    /**
+     * En-tetes standards d'un evenement, correlationId compris.
+     */
     public Map<String, String> headersFor(OrderFlowEvent event, String correlationId) {
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put(EventHeaders.EVENT_ID, event.eventId());
@@ -43,7 +46,9 @@ public class EventSerializer {
         return headers;
     }
 
-    /** Raccourci : evenement -> enveloppe prete a publier. */
+    /**
+     * Raccourci : evenement -> enveloppe prete a publier.
+     */
     public EventEnvelope envelope(String topic, OrderFlowEvent event, String correlationId) {
         return new EventEnvelope(topic, event.orderId(), toJson(event), headersFor(event, correlationId));
     }

@@ -1,75 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+    <modelVersion>4.0.0</modelVersion>
 
-  <parent>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-parent</artifactId>
-    <version>4.1.1</version>
-    <relativePath/>
-  </parent>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
 
-  <groupId>fr.orderflow</groupId>
-  <artifactId>orderflow-parent</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
-  <packaging>pom</packaging>
+    <groupId>fr.orderflow</groupId>
+    <artifactId>orderflow-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
-  <name>OrderFlow</name>
-  <description>Cas d'ecole Kafka / Spring Boot - squelette sans Kafka</description>
+    <name>OrderFlow</name>
+    <description>Cas d'ecole Kafka / Spring Boot - squelette sans Kafka</description>
 
-  <properties>
-    <java.version>21</java.version>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>21</maven.compiler.release>
-  </properties>
+    <properties>
+        <java.version>25</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>25</maven.compiler.release>
+    </properties>
 
-  <modules>
-    <module>orderflow-common</module>
-    <module>order-service</module>
-    <module>inventory-service</module>
-    <module>payment-service</module>
-    <module>notification-service</module>
-  </modules>
+    <modules>
+        <module>orderflow-common</module>
+        <module>order-service</module>
+        <module>inventory-service</module>
+        <module>payment-service</module>
+        <module>notification-service</module>
+    </modules>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>fr.orderflow</groupId>
-        <artifactId>orderflow-common</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>fr.orderflow</groupId>
+                <artifactId>orderflow-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
-  <!--
-    ================================================================
-    NOTE SPRING BOOT 4 - starters modulaires
-    ================================================================
-    Spring Boot 4 a eclate les starters monolithiques :
-      spring-boot-starter-web      -> spring-boot-starter-webmvc
-      spring-boot-starter-json     -> spring-boot-starter-jackson
-      spring-boot-starter-test     -> eclate en starters par techno
-                                      (spring-boot-starter-webmvc-test, etc.)
-    Les anciens noms existent encore mais sont deprecies.
+    <!--
+      ================================================================
+      NOTE SPRING BOOT 4 - starters modulaires
+      ================================================================
+      Spring Boot 4 a eclate les starters monolithiques :
+        spring-boot-starter-web      -> spring-boot-starter-webmvc
+        spring-boot-starter-json     -> spring-boot-starter-jackson
+        spring-boot-starter-test     -> eclate en starters par techno
+                                        (spring-boot-starter-webmvc-test, etc.)
+      Les anciens noms existent encore mais sont deprecies.
 
-    FILET DE SECURITE : si un starter modulaire pose probleme sur ta
-    version exacte de Boot, remplace temporairement les starters d'un
-    module par :
+      FILET DE SECURITE : si un starter modulaire pose probleme sur ta
+      version exacte de Boot, remplace temporairement les starters d'un
+      module par :
 
-        <dependency>
-          <groupId>org.springframework.boot</groupId>
-          <artifactId>spring-boot-starter-classic</artifactId>
-        </dependency>
-        <dependency>
-          <groupId>org.springframework.boot</groupId>
-          <artifactId>spring-boot-starter-test-classic</artifactId>
-          <scope>test</scope>
-        </dependency>
+          <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-classic</artifactId>
+          </dependency>
+          <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test-classic</artifactId>
+            <scope>test</scope>
+          </dependency>
 
-    Ces starters "classic" restituent un classpath equivalent a Boot 3.
-    A retirer une fois la migration comprise.
-    ================================================================
-  -->
+      Ces starters "classic" restituent un classpath equivalent a Boot 3.
+      A retirer une fois la migration comprise.
+      ================================================================
+    -->
 </project>

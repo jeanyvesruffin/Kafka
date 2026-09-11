@@ -45,7 +45,7 @@ orderflow:
   messaging:
     # 'logging' : pas de broker, les evenements sont traces dans la console.
     # Passe a 'kafka' quand ton KafkaEventPublisher existe.
-    publisher: logging
+    publisher: kafka
   outbox:
     poll-interval-ms: 1000
 

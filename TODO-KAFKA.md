@@ -40,13 +40,13 @@ ce bean pour brancher Kafka, quelque chose fuit.
 
 ### Phase 1 — Premier flux Order → Inventory
 
-- [ ] Décommenter `spring-boot-starter-kafka` dans `order-service/pom.xml` et `inventory-service/pom.xml`
-- [ ] Décommenter le bloc `spring.kafka` dans `order-service/src/main/resources/application.yml`
-- [ ] Écrire `fr.orderflow.order.messaging.KafkaEventPublisher implements EventPublisher`
-- [ ] Basculer `orderflow.messaging.publisher` sur `kafka` dans les `application.yml` concernés
-- [ ] Déclarer les topics via des beans `NewTopic` (⚠️ `replicationFactor = 1` en local mono-nœud)
-- [ ] Écrire `fr.orderflow.inventory.messaging.OrderEventListener` → appelle `inventoryService.handleOrderCreated(...)`
-- [ ] Écrire `KafkaEventPublisher` côté inventory également
+- [x] Décommenter `spring-boot-starter-kafka` dans `order-service/pom.xml` et `inventory-service/pom.xml`
+- [x] Décommenter le bloc `spring.kafka` dans `order-service/src/main/resources/application.yml`
+- [x] Écrire `fr.orderflow.order.messaging.KafkaEventPublisher implements EventPublisher`
+- [x] Basculer `orderflow.messaging.publisher` sur `kafka` dans les `application.yml` concernés
+- [x] Déclarer les topics via des beans `NewTopic` (⚠️ `replicationFactor = 1` en local mono-nœud)
+- [x] Écrire `fr.orderflow.inventory.messaging.OrderEventListener` → appelle `inventoryService.handleOrderCreated(...)`
+- [x] Écrire `KafkaEventPublisher` côté inventory également
 
 **Validé quand** : un `POST /api/orders` fait bouger le stock dans `GET /api/stock`,
 et que tu vois les messages passer dans AKHQ.
@@ -73,7 +73,7 @@ qu'elles tiennent** face à un vrai broker.
 - [ ] `ErrorHandlingDeserializer` sur tous les consumers
 - [ ] `DefaultErrorHandler` ou `@RetryableTopic` avec backoff exponentiel
 - [ ] Classer les exceptions : `DeserializationException` → DLT immédiat,
-      `OptimisticLockingFailureException` → retryable
+  `OptimisticLockingFailureException` → retryable
 - [ ] Injecter une panne transitoire dans `PaymentGatewaySimulator` pour observer les retries
 
 ### Phase 5 — Observabilité
@@ -96,16 +96,16 @@ Kafka Streams, exactly-once transactionnel, chaos testing, virtual threads.
 
 ## Ce que le squelette te donne déjà, ne le réécris pas
 
-| Besoin | Où c'est déjà fait |
-|---|---|
-| Contrats d'événements | `orderflow-common` — `sealed interface OrderFlowEvent` + 7 records |
-| Noms de topics | `Topics` — aucune chaîne en dur ailleurs |
-| Sérialisation JSON | `EventSerializer` (Jackson 3 / `JsonMapper`) |
-| Outbox transactionnel | `OutboxEventEntity` + `OutboxRelay` |
-| Idempotence consumer | `ProcessedEventEntity` (inventory, payment) |
+| Besoin                   | Où c'est déjà fait                                                   |
+|--------------------------|----------------------------------------------------------------------|
+| Contrats d'événements    | `orderflow-common` — `sealed interface OrderFlowEvent` + 7 records   |
+| Noms de topics           | `Topics` — aucune chaîne en dur ailleurs                             |
+| Sérialisation JSON       | `EventSerializer` (Jackson 3 / `JsonMapper`)                         |
+| Outbox transactionnel    | `OutboxEventEntity` + `OutboxRelay`                                  |
+| Idempotence consumer     | `ProcessedEventEntity` (inventory, payment)                          |
 | Machine à états commande | `OrderEntity.transitionTo(...)` — refuse de quitter un état terminal |
-| Compensation stock | `InventoryService.handleOrderCancelled(...)` |
-| Verrouillage concurrent | `@Version` sur `StockEntity` |
+| Compensation stock       | `InventoryService.handleOrderCancelled(...)`                         |
+| Verrouillage concurrent  | `@Version` sur `StockEntity`                                         |
 
 **Règle** : un listener ne contient jamais de logique métier. Il désérialise et
 délègue. Si tu ressens le besoin d'un `if` métier dans un listener, c'est qu'une

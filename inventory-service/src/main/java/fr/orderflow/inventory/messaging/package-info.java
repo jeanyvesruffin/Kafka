@@ -1,6 +1,6 @@
 /**
  * <h2>PACKAGE A REMPLIR — couche messaging du service Stock</h2>
- *
+ * <p>
  * Toute la logique metier existe deja dans {@code InventoryService}, deja
  * idempotente. Ton listener deserialise et delegue, rien de plus.
  *

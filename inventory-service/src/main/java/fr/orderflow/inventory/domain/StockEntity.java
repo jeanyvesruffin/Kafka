@@ -1,10 +1,6 @@
 package fr.orderflow.inventory.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.*;
 
 /**
  * Stock d'un produit.
@@ -58,7 +54,9 @@ public class StockEntity {
         this.quantityReserved += quantity;
     }
 
-    /** Compensation : libere une reservation apres annulation de la commande. */
+    /**
+     * Compensation : libere une reservation apres annulation de la commande.
+     */
     public void release(int quantity) {
         int toRelease = Math.min(quantity, quantityReserved);
         this.quantityReserved -= toRelease;

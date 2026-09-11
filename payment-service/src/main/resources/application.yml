@@ -25,7 +25,7 @@ orderflow:
   messaging:
     # 'logging' : pas de broker, les evenements sont traces dans la console.
     # Passe a 'kafka' quand ton KafkaEventPublisher existe.
-    publisher: logging
+    publisher: kafka
   payment:
     # Au-dela de ce montant, le simulateur refuse. Permet de declencher a volonte
     # le parcours de compensation (1x sku-005 = 1250,00 > 1000,00).

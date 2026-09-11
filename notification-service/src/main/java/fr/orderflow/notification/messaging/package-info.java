@@ -1,6 +1,6 @@
 /**
  * <h2>PACKAGE A REMPLIR — couche messaging du service Notification</h2>
- *
+ * <p>
  * Ce service consomme les evenements terminaux :
  * {@code orders.confirmed} et {@code orders.cancelled}.
  *

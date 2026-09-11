@@ -1,9 +1,10 @@
 package fr.orderflow.order.repository;
 
 import fr.orderflow.order.domain.OutboxEventEntity;
-import java.util.List;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
 
 public interface OutboxEventRepository extends JpaRepository<OutboxEventEntity, String> {
 

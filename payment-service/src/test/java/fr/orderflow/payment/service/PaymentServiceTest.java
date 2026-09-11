@@ -1,7 +1,5 @@
 package fr.orderflow.payment.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import fr.orderflow.common.event.InventoryReservedEvent;
 import fr.orderflow.common.event.OrderLine;
 import fr.orderflow.common.messaging.EventEnvelope;
@@ -13,6 +11,13 @@ import fr.orderflow.payment.domain.PaymentStatus;
 import fr.orderflow.payment.domain.ProcessedEventEntity;
 import fr.orderflow.payment.repository.PaymentRepository;
 import fr.orderflow.payment.repository.ProcessedEventRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import tools.jackson.databind.json.JsonMapper;
+
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -21,12 +26,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
-import tools.jackson.databind.json.JsonMapper;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class PaymentServiceTest {
 
@@ -38,21 +39,31 @@ class PaymentServiceTest {
     private Set<String> processedIds;
     private PaymentService paymentService;
 
+    private static InventoryReservedEvent reserved(String eventId, String amount) {
+        var total = new BigDecimal(amount);
+        return new InventoryReservedEvent(
+                eventId, "ord-1", "cust-118",
+                List.of(new OrderLine("sku-001", 1, total)), total, NOW);
+    }
+
     @BeforeEach
     void setUp() {
         published = new ArrayList<>();
         processedIds = new HashSet<>();
 
         paymentRepository = Mockito.mock(PaymentRepository.class);
-        Mockito.when(paymentRepository.save(Mockito.any())).thenAnswer(inv -> inv.getArgument(0));
+        Mockito.when(paymentRepository.save(Mockito.any()))
+                .thenAnswer(inv -> inv.getArgument(0));
 
         var processedRepository = Mockito.mock(ProcessedEventRepository.class);
         Mockito.when(processedRepository.existsById(Mockito.anyString()))
                 .thenAnswer(inv -> processedIds.contains(inv.getArgument(0, String.class)));
-        Mockito.when(processedRepository.save(Mockito.any())).thenAnswer(inv -> {
-            processedIds.add(inv.getArgument(0, ProcessedEventEntity.class).getEventId());
-            return inv.getArgument(0);
-        });
+        Mockito.when(processedRepository.save(Mockito.any()))
+                .thenAnswer(inv -> {
+                    processedIds.add(inv.getArgument(0, ProcessedEventEntity.class)
+                            .getEventId());
+                    return inv.getArgument(0);
+                });
 
         EventPublisher publisher = published::add;
         paymentService = new PaymentService(
@@ -60,7 +71,8 @@ class PaymentServiceTest {
                 processedRepository,
                 new PaymentGatewaySimulator(new BigDecimal("1000.00")),
                 publisher,
-                new EventSerializer(JsonMapper.builder().build()),
+                new EventSerializer(JsonMapper.builder()
+                        .build()),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -70,7 +82,8 @@ class PaymentServiceTest {
         paymentService.handleInventoryReserved(reserved("evt-1", "39.80"), CID);
 
         assertThat(published).hasSize(1);
-        assertThat(published.getFirst().topic()).isEqualTo(Topics.PAYMENTS_COMPLETED);
+        assertThat(published.getFirst()
+                .topic()).isEqualTo(Topics.PAYMENTS_COMPLETED);
         assertThat(capturePayment().getStatus()).isEqualTo(PaymentStatus.COMPLETED);
     }
 
@@ -80,11 +93,14 @@ class PaymentServiceTest {
         paymentService.handleInventoryReserved(reserved("evt-1", "1250.00"), CID);
 
         assertThat(published).hasSize(1);
-        assertThat(published.getFirst().topic()).isEqualTo(Topics.PAYMENTS_FAILED);
+        assertThat(published.getFirst()
+                .topic()).isEqualTo(Topics.PAYMENTS_FAILED);
         PaymentEntity payment = capturePayment();
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
         assertThat(payment.getFailureReason()).contains("Plafond depasse");
     }
+
+    // ------------------------------------------------------------------
 
     @Test
     @DisplayName("Le meme evenement redelivre ne debite pas deux fois (idempotence)")
@@ -95,20 +111,14 @@ class PaymentServiceTest {
         paymentService.handleInventoryReserved(event, CID);
 
         assertThat(published).hasSize(1);
-        Mockito.verify(paymentRepository, Mockito.times(1)).save(Mockito.any());
-    }
-
-    // ------------------------------------------------------------------
-
-    private static InventoryReservedEvent reserved(String eventId, String amount) {
-        var total = new BigDecimal(amount);
-        return new InventoryReservedEvent(eventId, "ord-1", "cust-118",
-                List.of(new OrderLine("sku-001", 1, total)), total, NOW);
+        Mockito.verify(paymentRepository, Mockito.times(1))
+                .save(Mockito.any());
     }
 
     private PaymentEntity capturePayment() {
         var captor = ArgumentCaptor.forClass(PaymentEntity.class);
-        Mockito.verify(paymentRepository, Mockito.atLeastOnce()).save(captor.capture());
+        Mockito.verify(paymentRepository, Mockito.atLeastOnce())
+                .save(captor.capture());
         return captor.getValue();
     }
 }

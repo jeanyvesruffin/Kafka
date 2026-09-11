@@ -24,19 +24,17 @@ public class NotificationService {
 
     public void notifyCustomer(OrderFlowEvent event, String correlationId) {
         String message = switch (event) {
-            case OrderConfirmedEvent e ->
-                    "Votre commande " + e.orderId() + " est confirmee. Merci !";
-            case OrderCancelledEvent e ->
-                    "Votre commande " + e.orderId() + " a ete annulee. Motif : " + e.reason();
-            default ->
-                    null;   // les evenements intermediaires ne declenchent pas de notification
+            case OrderConfirmedEvent e -> "Votre commande " + e.orderId() + " est confirmee. Merci !";
+            case OrderCancelledEvent e -> "Votre commande " + e.orderId() + " a ete annulee. Motif : " + e.reason();
+            default -> null;   // les evenements intermediaires ne declenchent pas de notification
         };
 
         if (message == null) {
             log.debug("Evenement non notifiable, ignore type={}", event.eventType());
             return;
         }
-        log.info("[NOTIFICATION] orderId={} correlationId={} message=\"{}\"",
+        log.info(
+                "[NOTIFICATION] orderId={} correlationId={} message=\"{}\"",
                 event.orderId(), correlationId, message);
     }
 }

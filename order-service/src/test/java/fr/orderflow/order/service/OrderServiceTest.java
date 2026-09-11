@@ -1,7 +1,5 @@
 package fr.orderflow.order.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import fr.orderflow.common.event.OrderCreatedEvent;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
@@ -11,17 +9,20 @@ import fr.orderflow.order.domain.OrderStatus;
 import fr.orderflow.order.domain.OutboxEventEntity;
 import fr.orderflow.order.repository.OrderRepository;
 import fr.orderflow.order.repository.OutboxEventRepository;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests unitaires purs — aucun contexte Spring, aucune base, aucun broker.
@@ -44,7 +45,8 @@ class OrderServiceTest {
     void setUp() {
         orderRepository = Mockito.mock(OrderRepository.class);
         outboxRepository = Mockito.mock(OutboxEventRepository.class);
-        eventSerializer = new EventSerializer(JsonMapper.builder().build());
+        eventSerializer = new EventSerializer(JsonMapper.builder()
+                .build());
         orderService = new OrderService(
                 orderRepository,
                 outboxRepository,
@@ -52,13 +54,15 @@ class OrderServiceTest {
                 eventSerializer,
                 Clock.fixed(NOW, ZoneOffset.UTC));
 
-        Mockito.when(orderRepository.save(Mockito.any())).thenAnswer(inv -> inv.getArgument(0));
+        Mockito.when(orderRepository.save(Mockito.any()))
+                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
     @DisplayName("Creer une commande ecrit la commande ET la ligne d'outbox dans la meme transaction")
     void createOrder_writesOrderAndOutbox() {
-        var request = new CreateOrderRequest("cust-118",
+        var request = new CreateOrderRequest(
+                "cust-118",
                 List.of(new CreateOrderRequest.Item("sku-001", 2)));
 
         OrderEntity order = orderService.createOrder(request, CID);
@@ -107,7 +111,8 @@ class OrderServiceTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         // Une seule ligne d'outbox, pas deux : le second appel a ete absorbe.
-        Mockito.verify(outboxRepository, Mockito.times(1)).save(Mockito.any());
+        Mockito.verify(outboxRepository, Mockito.times(1))
+                .save(Mockito.any());
     }
 
     @Test
@@ -118,24 +123,28 @@ class OrderServiceTest {
         orderService.onPaymentCompleted(order.getId(), CID);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-        Mockito.verify(outboxRepository, Mockito.never()).save(Mockito.any());
+        Mockito.verify(outboxRepository, Mockito.never())
+                .save(Mockito.any());
     }
 
     // ------------------------------------------------------------------
 
     private OrderEntity existingOrder(OrderStatus status) {
-        var request = new CreateOrderRequest("cust-118",
+        var request = new CreateOrderRequest(
+                "cust-118",
                 List.of(new CreateOrderRequest.Item("sku-001", 2)));
         OrderEntity order = orderService.createOrder(request, CID);
         order.transitionTo(status, null, NOW);
         Mockito.reset(outboxRepository);
-        Mockito.when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+        Mockito.when(orderRepository.findById(order.getId()))
+                .thenReturn(Optional.of(order));
         return order;
     }
 
     private OutboxEventEntity captureOutbox() {
         var captor = ArgumentCaptor.forClass(OutboxEventEntity.class);
-        Mockito.verify(outboxRepository).save(captor.capture());
+        Mockito.verify(outboxRepository)
+                .save(captor.capture());
         return captor.getValue();
     }
 }

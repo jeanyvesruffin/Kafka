@@ -1,6 +1,6 @@
 /**
  * <h2>PACKAGE A REMPLIR — couche messaging du service Commande</h2>
- *
+ * <p>
  * Ce package est volontairement vide. C'est ici que tu ecriras la partie Kafka.
  *
  * <h3>1. Le publisher (remplace le publisher de log)</h3>
@@ -19,7 +19,7 @@
  *     }
  * }
  * }</pre>
- *
+ * <p>
  * Puis, dans l'{@code application.yml} du service, bascule le publisher :
  * {@code orderflow.messaging.publisher: kafka}. Le publisher de log n'est
  * alors plus cree, et le relais d'outbox se met a publier pour de vrai.

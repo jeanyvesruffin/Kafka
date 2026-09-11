@@ -1,8 +1,9 @@
 package fr.orderflow.payment.service;
 
-import java.math.BigDecimal;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
 
 /**
  * Simulateur d'encaissement — DETERMINISTE, et c'est volontaire.

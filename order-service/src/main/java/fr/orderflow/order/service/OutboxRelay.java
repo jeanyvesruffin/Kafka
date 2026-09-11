@@ -5,16 +5,17 @@ import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.order.domain.OutboxEventEntity;
 import fr.orderflow.order.repository.OutboxEventRepository;
-import java.time.Clock;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Limit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Relais d'outbox : lit les evenements non publies et les pousse sur le bus.
@@ -67,7 +68,8 @@ public class OutboxRelay {
             } catch (RuntimeException e) {
                 // On s'arrete au premier echec pour preserver l'ordre des
                 // evenements d'une meme commande. Le lot repartira au tour suivant.
-                log.warn("Publication echouee eventId={} topic={} : {}. Nouvel essai au prochain cycle.",
+                log.warn(
+                        "Publication echouee eventId={} topic={} : {}. Nouvel essai au prochain cycle.",
                         row.getEventId(), row.getTopic(), e.getMessage());
                 break;
             }

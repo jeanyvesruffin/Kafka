@@ -20,7 +20,8 @@ public class LoggingEventPublisher implements EventPublisher {
 
     @Override
     public void publish(EventEnvelope envelope) {
-        log.info("[NO-BROKER] topic={} key={} headers={} payload={}",
+        log.info(
+                "[NO-BROKER] topic={} key={} headers={} payload={}",
                 envelope.topic(), envelope.key(), envelope.headers(), envelope.payload());
     }
 }

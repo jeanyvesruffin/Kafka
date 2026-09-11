@@ -21,18 +21,26 @@ import java.time.Instant;
  */
 public sealed interface OrderFlowEvent
         permits OrderCreatedEvent, OrderCancelledEvent, OrderConfirmedEvent,
-                InventoryReservedEvent, InventoryRejectedEvent,
-                PaymentCompletedEvent, PaymentFailedEvent {
+        InventoryReservedEvent, InventoryRejectedEvent,
+        PaymentCompletedEvent, PaymentFailedEvent {
 
-    /** Identifiant unique de l'evenement. Cle de l'idempotence cote consommateur. */
+    /**
+     * Identifiant unique de l'evenement. Cle de l'idempotence cote consommateur.
+     */
     String eventId();
 
-    /** Identifiant de la commande. Sert de cle de partition Kafka. */
+    /**
+     * Identifiant de la commande. Sert de cle de partition Kafka.
+     */
     String orderId();
 
-    /** Date de survenue metier (pas la date de publication). */
+    /**
+     * Date de survenue metier (pas la date de publication).
+     */
     Instant occurredAt();
 
-    /** Nom logique, place dans l'en-tete Kafka {@code eventType}. */
+    /**
+     * Nom logique, place dans l'en-tete Kafka {@code eventType}.
+     */
     String eventType();
 }

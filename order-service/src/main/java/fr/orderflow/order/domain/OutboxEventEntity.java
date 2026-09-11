@@ -1,11 +1,7 @@
 package fr.orderflow.order.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.Lob;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.time.Instant;
 
 /**
@@ -18,14 +14,16 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "outbox_event",
-       indexes = @Index(name = "idx_outbox_unpublished", columnList = "published, created_at"))
+        indexes = @Index(name = "idx_outbox_unpublished", columnList = "published, created_at"))
 public class OutboxEventEntity {
 
     @Id
     @Column(name = "id", length = 64)
     private String id;
 
-    /** Agregat concerne — l'orderId. Sert aussi de cle de partition. */
+    /**
+     * Agregat concerne — l'orderId. Sert aussi de cle de partition.
+     */
     @Column(name = "aggregate_id", nullable = false, length = 64)
     private String aggregateId;
 

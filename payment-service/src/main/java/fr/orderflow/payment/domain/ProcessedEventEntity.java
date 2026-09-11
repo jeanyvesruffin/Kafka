@@ -4,9 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
 import java.time.Instant;
 
-/** Journal des evenements deja traites — pattern Idempotent Consumer. */
+/**
+ * Journal des evenements deja traites — pattern Idempotent Consumer.
+ */
 @Entity
 @Table(name = "processed_events")
 public class ProcessedEventEntity {
