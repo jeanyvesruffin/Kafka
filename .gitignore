@@ -5,7 +5,12 @@ target/
 *.iml
 *.ipr
 *.iws
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/java-formatter.xml
 .settings/
 .classpath
 .project

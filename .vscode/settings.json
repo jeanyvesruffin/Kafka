@@ -1,0 +1,55 @@
+// Configuration VS Code equivalente au dossier .idea/ (IntelliJ IDEA).
+// Chaque bloc indique le fichier IDEA qu'il remplace.
+{
+  // --- .idea/encodings.xml : sources en UTF-8 --------------------------------
+  "files.encoding": "utf8",
+
+  // --- .idea/misc.xml : JDK "temurin-25", niveau de langage 25 ---------------
+  // Chemin propre a ce poste : a ajuster si le JDK est mis a jour.
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-25",
+      "path": "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.3.9-hotspot",
+      "default": true
+    }
+  ],
+
+  // --- misc.xml (MavenProjectsManager) / modules.xml -------------------------
+  // Les 5 modules sont importes depuis le pom.xml racine, comme dans IDEA,
+  // et la configuration est rechargee automatiquement quand un pom change.
+  "java.import.maven.enabled": true,
+  "java.configuration.updateBuildConfiguration": "automatic",
+
+  // --- .idea/compiler.xml : processeurs d'annotations + option -parameters ---
+  // Rien a declarer : l'extension Java lit le pom.xml (m2e), et le parent
+  // spring-boot-starter-parent active deja <parameters>true</parameters>.
+
+  // --- .idea/codeStyles : profil "Default" d'IntelliJ ------------------------
+  "[java]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+    "editor.rulers": [120]
+  },
+  "java.format.settings.url": ".vscode/java-formatter.xml",
+  "java.format.settings.profile": "IntelliJ-Default",
+  // Imports : '*' a partir de 5 classes (3 pour les statiques), ordre IntelliJ
+  // (autres, javax, java, puis statiques).
+  "java.sources.organizeImports.starThreshold": 5,
+  "java.sources.organizeImports.staticStarThreshold": 3,
+  "java.completion.importOrder": ["", "javax", "java", "#"],
+
+  // --- Dossiers target/ exclus de la recherche, comme les "Excluded" d'IDEA -
+  "search.exclude": {
+    "**/target": true
+  },
+  "files.watcherExclude": {
+    "**/target/**": true
+  }
+
+  // --- .idea/dataSources.xml : bases H2 orders / inventory / payments --------
+  // Voir la tache "H2 : ouvrir la console" (tasks.json).
+
+  // --- http/orders.http (client HTTP d'IDEA) ---------------------------------
+  // Meme format lu par l'extension REST Client (extensions.json).
+}

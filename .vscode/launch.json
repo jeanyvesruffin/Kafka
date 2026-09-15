@@ -1,0 +1,57 @@
+// Equivalent des configurations de lancement "Spring Boot" d'IntelliJ :
+// une par service, plus un compound pour tout demarrer d'un coup.
+// Le broker Kafka doit tourner avant (spring.kafka.admin.fail-fast: true),
+// voir la tache "Kafka : demarrer le broker".
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "order-service :8081",
+      "request": "launch",
+      "mainClass": "fr.orderflow.order.OrderApplication",
+      "projectName": "order-service",
+      "cwd": "${workspaceFolder}/order-service",
+      "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
+    },
+    {
+      "type": "java",
+      "name": "inventory-service :8082",
+      "request": "launch",
+      "mainClass": "fr.orderflow.inventory.InventoryApplication",
+      "projectName": "inventory-service",
+      "cwd": "${workspaceFolder}/inventory-service",
+      "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
+    },
+    {
+      "type": "java",
+      "name": "payment-service :8083",
+      "request": "launch",
+      "mainClass": "fr.orderflow.payment.PaymentApplication",
+      "projectName": "payment-service",
+      "cwd": "${workspaceFolder}/payment-service",
+      "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
+    },
+    {
+      "type": "java",
+      "name": "notification-service :8084",
+      "request": "launch",
+      "mainClass": "fr.orderflow.notification.NotificationApplication",
+      "projectName": "notification-service",
+      "cwd": "${workspaceFolder}/notification-service",
+      "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "OrderFlow : tous les services",
+      "configurations": [
+        "order-service :8081",
+        "inventory-service :8082",
+        "payment-service :8083",
+        "notification-service :8084"
+      ],
+      "stopAll": true
+    }
+  ]
+}
