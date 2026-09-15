@@ -1,4 +1,5 @@
-// Equivalent de la fenetre Maven d'IDEA, plus le demarrage du broker Kafka
+// Equivalent de la fenetre Maven d'IDEA, plus le demarrage de l'infrastructure
+// (Kafka natif sans droits admin, ou Docker Compose avec droits admin)
 // et l'acces aux bases H2 declarees dans .idea/dataSources.xml.
 {
   "version": "2.0.0",
@@ -54,7 +55,7 @@
     },
     {
       "label": "Kafka : demarrer le broker",
-      "detail": "scripts/start-kafka.cmd (Windows) ou start-kafka.sh ; KAFKA_HOME requis",
+      "detail": "Sans droits admin : scripts/start-kafka.cmd (Windows) ou start-kafka.sh ; KAFKA_HOME requis",
       "type": "process",
       "command": "bash",
       "args": ["${workspaceFolder}/scripts/start-kafka.sh"],
@@ -63,6 +64,39 @@
         "args": ["/c", "${workspaceFolder}\\scripts\\start-kafka.cmd"]
       },
       "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker : tout demarrer",
+      "detail": "Avec droits admin : build des images puis Kafka, AKHQ et les 4 services",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "--build"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker : Kafka + AKHQ seuls",
+      "detail": "Avec droits admin : infra seule, services lances depuis launch.json",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "up", "-d", "kafka", "akhq"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker : logs",
+      "detail": "Suit les logs de tous les conteneurs",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "logs", "-f"],
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker : arreter",
+      "detail": "Arrete les conteneurs en conservant les volumes (donnees Kafka et H2)",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "down"],
       "problemMatcher": []
     },
     {
@@ -86,7 +120,7 @@
     {
       "id": "h2Console",
       "type": "pickString",
-      "description": "Base H2 a ouvrir (copier la JDBC URL dans le formulaire de connexion)",
+      "description": "Base H2 a ouvrir. JDBC URL : celle affichee (sans admin) ou jdbc:h2:file:/data/<base>;AUTO_SERVER=TRUE;MODE=PostgreSQL (Docker)",
       "options": [
         {
           "label": "orders :8081 - jdbc:h2:file:~/Users/jeanyves.ruffin/orderflow-data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL",

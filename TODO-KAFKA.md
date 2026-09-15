@@ -40,10 +40,29 @@ ce bean pour brancher Kafka, quelque chose fuit.
 
 ### Démarrage
 
+Deux modes, détaillés dans la rubrique [Démarrage du README](README.md#démarrage). Java 25 dans les deux cas.
+
+<details>
+<summary>Démarrage avec droits administrateur (Docker)</summary>
+
+```shell
+docker compose up -d --build      # Kafka + AKHQ + les 4 services
+docker compose up -d kafka akhq   # ou infra seule, services lancés depuis l'IDE
+docker compose logs -f            # suivre les logs
+docker compose down               # arrêter (down -v efface aussi Kafka et les bases H2)
+```
+
+AKHQ : `http://localhost:8090`. Kafka reste joignable depuis le poste sur `localhost:9092`.
+
+</details>
+
+<details>
+<summary>Démarrage sans droits administrateur</summary>
+
 * Les différents modules se démarrent à l'aide des commandes ci-dessous :
 ```shell
 mvn clean install #A la racine du module desire
-mvn spring-boot: run
+mvn spring-boot:run
 ```
 * Le moteur Kafka s'exécute à l'aide de la commande ci-dessous :
 ```shell
@@ -51,8 +70,10 @@ bin\windows\kafka-server-start.bat config\server.properties #A la racine de votr
 ```
 * Démarrage AKHQ
 ```shell
-java -Dmicronaut.config.files=application.yml -jar akhq-0.28.0-all.jar #A la racine de votre installation akhq
+java -Dmicronaut.config.files=application.yml -jar akhq-0.28.0-all.jar #A la racine de votre installation akhq (Java 25 requis)
 ```
+
+</details>
 
 <a id="phase-1"></a>
 
@@ -90,6 +111,7 @@ et que tu vois les messages passer dans AKHQ.
 ### Phase 3 — Vérifier l'outbox et l'idempotence sous Kafka
 
 - [ ] Arrêter le broker, poster 3 commandes, le redémarrer → les 3 événements doivent partir
+  (en mode Docker : `docker compose stop kafka`, puis `docker compose start kafka`)
 - [ ] Rejouer manuellement un message depuis AKHQ → le stock ne doit pas bouger deux fois
 
 Rien à coder ici : les garanties sont déjà en place. L'exercice est de **prouver

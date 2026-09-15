@@ -1,0 +1,15 @@
+# Contexte de build Docker : uniquement les pom.xml et les sources Maven
+**/target/
+**/*.iml
+**/*.md
+.git
+.gitignore
+.idea
+.vscode
+.claude
+Docs
+http
+scripts
+Dockerfile
+docker-compose.yml
+.dockerignore

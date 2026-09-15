@@ -60,11 +60,139 @@ Exemple de cluster partitionné avec Replicat
     * Un des brokers à en charge de coordonner (coordinator)
         * coordinator est en charge de l'offset
 
-## Installation
+</details>
 
-### Zookeeper (plus nécessaire remplacé par KRaft)
+## Démarrage
 
-### Kafka & Kafka manager (CMAK)
+Le même code tourne dans deux modes : choisis celui qui correspond à ton poste.
+**Java 25** est la version de référence dans les deux cas (AKHQ 0.28.0 l'exige).
+
+|                      | Avec droits administrateur                                              | Sans droits administrateur                            |
+|----------------------|-------------------------------------------------------------------------|-------------------------------------------------------|
+| Kafka 4.3.1 (KRaft)  | conteneur `apache/kafka:4.3.1`                                          | archive `kafka_2.13-4.3.1.tgz` lancée à la main       |
+| AKHQ 0.28.0          | conteneur `tchiotludo/akhq:0.28.0`                                      | `akhq-0.28.0-all.jar` (Java 25)                       |
+| Services Spring Boot | conteneurs construits par la [`Dockerfile`](Dockerfile), ou IDE / `mvn` | IDE ou `mvn spring-boot:run`                          |
+| Bases H2             | un volume Docker par service                                            | un fichier par service dans le répertoire utilisateur |
+| Tests                | `mvn clean verify` (`@EmbeddedKafka`, sans Docker)                      | `mvn clean verify` (identique)                        |
+
+Les ports sont les mêmes dans les deux modes (Kafka `9092`, services `8081` à `8084`, AKHQ `8090`) :
+ne fais pas tourner les deux en même temps.
+
+<details>
+<summary>Démarrage avec droits administrateur (Docker)</summary>
+
+### Prérequis
+
+- Docker Desktop (Windows, macOS) ou Docker Engine avec le plugin Compose (Linux).
+- Pour lancer les services depuis l'IDE ou lancer les tests : un JDK 25 et Maven, comme dans le mode sans droits
+  administrateur. Pour tout faire tourner en conteneurs, Docker suffit.
+
+### Tout démarrer en conteneurs
+
+```bash
+docker compose up -d --build
+```
+
+Le premier lancement construit les images des 4 services : la compilation Maven se fait dans un conteneur
+`maven:3.9-eclipse-temurin-25`, puis chaque service tourne sur une image `eclipse-temurin:25-jre`. Les services
+attendent que Kafka soit prêt (healthcheck) avant de démarrer.
+
+| Adresse                            | Composant                         |
+|------------------------------------|-----------------------------------|
+| `http://localhost:8081/api/orders` | order-service                     |
+| `http://localhost:8082/api/stock`  | inventory-service                 |
+| `http://localhost:8083`            | payment-service                   |
+| `http://localhost:8084`            | notification-service              |
+| `http://localhost:8090`            | AKHQ (cluster `orderflow-docker`) |
+| `localhost:9092`                   | Kafka, depuis le poste (IDE, CLI) |
+
+```bash
+docker compose ps                            # état des conteneurs, Kafka doit être "healthy"
+docker compose logs -f order-service         # logs d'un service
+docker compose up -d --build order-service   # reconstruire un service après une modification du code
+```
+
+### Infra seule, services lancés depuis l'IDE
+
+```bash
+docker compose up -d kafka akhq
+```
+
+Lance ensuite les services depuis l'IDE (configurations Spring Boot d'IntelliJ ou `launch.json` de VS Code) ou avec
+`mvn -pl <service> spring-boot:run`. Ils trouvent Kafka sur `localhost:9092` et leur base H2 dans le répertoire
+utilisateur : `application.yml` ne change pas.
+
+### Bases H2
+
+Console `http://localhost:8081/h2-console` (8082 pour inventory, 8083 pour payments), utilisateur `sa`, sans mot de
+passe, JDBC URL `jdbc:h2:file:/data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL` (remplacer `orders` par `inventory` ou
+`payments`).
+
+### Arrêter, repartir de zéro
+
+```bash
+docker compose down      # arrête les conteneurs, garde les données (volumes)
+docker compose down -v   # arrête et efface les données Kafka et les bases H2
+```
+
+Phase 3 du TODO (outbox face à une panne du broker) : `docker compose stop kafka`, poste des commandes, puis
+`docker compose start kafka`.
+
+### Compiler et tester sans JDK sur le poste
+
+```bash
+docker run --rm -v "${PWD}:/workspace" -v orderflow-m2:/root/.m2 -w /workspace maven:3.9-eclipse-temurin-25 mvn -B clean verify
+```
+
+PowerShell ou bash, depuis la racine du dépôt. Le volume `orderflow-m2` garde le cache Maven entre deux exécutions.
+
+### Ce que fait la configuration Docker
+
+- [`docker-compose.yml`](docker-compose.yml) : Kafka en KRaft mono-nœud (3 partitions par défaut, réplication 1),
+  AKHQ, les 4 services et leurs volumes.
+- [`Dockerfile`](Dockerfile) : une seule image paramétrée par `SERVICE`, build Maven puis JRE 25, utilisateur non root.
+- Le broker expose deux listeners : `kafka:29092` pour les conteneurs, `localhost:9092` pour le poste.
+- Les `application.yml` ne changent pas : `docker-compose.yml` surcharge `spring.kafka.bootstrap-servers` et
+  `spring.datasource.url` par variables d'environnement.
+- Sous VS Code : tâches « Docker : tout demarrer », « Docker : Kafka + AKHQ seuls », « Docker : logs » et
+  « Docker : arreter ».
+
+</details>
+
+<details>
+<summary>Démarrage sans droits administrateur</summary>
+
+Tout tourne depuis le répertoire utilisateur : archives décompressées, aucun installeur, aucun service Windows.
+Procédure détaillée : [dossier technique, §12](Docs/TD/02-dossier-technique-fonctionnel-orderflow.md#12-installation-locale).
+
+### Prérequis : un JDK 25
+
+Archive `.zip` (Windows) ou `.tar.gz` (Linux, macOS) d'Eclipse Temurin 25, décompressée dans ton répertoire
+utilisateur. Pas d'installeur. Java 25 est requis par AKHQ 0.28.0.
+
+```bash
+java -version   # doit afficher 25.x
+```
+
+### Prérequis : Maven
+
+Le projet est livré **sans Maven Wrapper**. Deux options, toutes deux sans droits admin :
+
+1. **Maven portable** — décompresser `apache-maven-3.9.16-bin.zip` et ajouter
+   son `bin` au `PATH` utilisateur.
+2. **Générer le wrapper** une fois Maven disponible, puis n'utiliser que lui :
+   ```bash
+   mvn -N wrapper:wrapper -Dmaven=3.9.16
+   ```
+   Tu obtiens `mvnw` / `mvnw.cmd`, et Maven n'a plus besoin d'être installé.
+
+> Si ton réseau d'entreprise filtre Maven Central, configure le proxy dans
+> `~/.m2/settings.xml` avant la première build. C'est le blocage le plus
+> fréquent sur poste bridé.
+
+> ZooKeeper n'est plus nécessaire : Kafka 4.x fonctionne uniquement en mode KRaft.
+
+### Installer Kafka 4.3.1 (KRaft)
 
 * Télécharger Kafka [quickstart](https://kafka.apache.org/43/getting-started/quickstart/)
 * Décompresser le sous C:/ (Attention ne fonctionne pas si le chemin est trop long)
@@ -82,7 +210,7 @@ bin\windows\kafka-storage.bat format --standalone -t %KAFKA_CLUSTER_ID% -c confi
 
 * Configuration cluster et noeuf Kafka. Ouvrir pour modifier/ contrôler la configuration kafka dans le fichier
   `config/server.properties` ou (et) `controller.properties` ou (et) `broker.properties`
-  (Exemple : [server.properties](server.properties))):
+  (Exemple : [server.properties](Docs/server.properties)) :
 
 | Paramètre                                                 | Définition                                                                                                                                                                                                                                                                                                                                      | Type    | Défaut                                           |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|--------------------------------------------------|
@@ -100,6 +228,41 @@ bin\windows\kafka-storage.bat format --standalone -t %KAFKA_CLUSTER_ID% -c confi
 | `advertised.listeners`                                    | Adresses des listeners que les brokers annoncent aux clients et aux autres brokers — utile quand `listeners` ne représente pas les adresses réellement joignables par les clients (ex. environnements cloud/NAT). Si absent, la valeur de `listeners` est utilisée. Contrairement à `listeners`, ne peut pas annoncer l'adresse méta `0.0.0.0`. | list    | `null`                                           |
 | `delete.topic.enable`                                     | Quand `true`, les topics peuvent être supprimés via l'admin client ; quand `false`, les requêtes de suppression sont explicitement rejetées par le broker.                                                                                                                                                                                      | boolean | `true`                                           |
 
+### Démarrer Kafka et AKHQ
+
+```bash
+scripts\start-kafka.cmd   # Windows : broker Kafka (KAFKA_HOME, défaut C:\kafka_2.13-4.3.1)
+scripts/start-kafka.sh    # Linux, macOS : broker Kafka (KAFKA_HOME, défaut ~/dev/kafka_2.13-4.3.1)
+scripts/start-akhq.sh     # AKHQ sur http://localhost:8090 (AKHQ_HOME, défaut ~/dev/akhq)
+```
+
+La configuration d'AKHQ à copier à côté du JAR est [`scripts/akhq-application.yml`](scripts/akhq-application.yml).
+Sous VS Code : tâche « Kafka : demarrer le broker ».
+
+### Compiler et tester
+
+```bash
+mvn clean verify
+```
+
+Aucun service externe n'est nécessaire : les tests d'intégration démarrent un broker Kafka dans la JVM
+(`@EmbeddedKafka`) et utilisent H2.
+
+### Lancer les services
+
+Kafka démarré, quatre terminaux (ou lance seulement ce dont tu as besoin) :
+
+```bash
+mvn install -DskipTests                        # une fois : installe orderflow-common dans ~/.m2
+mvn -pl order-service        spring-boot:run   # :8081
+mvn -pl inventory-service    spring-boot:run   # :8082
+mvn -pl payment-service      spring-boot:run   # :8083
+mvn -pl notification-service spring-boot:run   # :8084
+```
+
+Ou depuis l'IDE : configurations Spring Boot d'IntelliJ, ou `launch.json` de VS Code
+(« OrderFlow : tous les services »).
+
 </details>
 
 ## TD
@@ -112,59 +275,16 @@ bin\windows\kafka-storage.bat format --standalone -t %KAFKA_CLUSTER_ID% -c confi
 Cas d'école événementiel. **Toute la logique métier est écrite et testée ; la
 couche Kafka est à toi.** Voir [`TODO-KAFKA.md`](TODO-KAFKA.md).
 
-- **Java 21** · **Spring Boot 4.1.1** · **H2 embarqué** · **Maven**
-- Aucune dépendance à Docker, à un broker ou à un serveur de base de données
-- Tout tourne depuis le répertoire utilisateur, sans droits administrateur
+- **Java 25** · **Spring Boot 4.1.1** · **H2 embarqué** · **Maven**
+- Deux modes de démarrage pour le même code : sans droits administrateur (tout depuis le répertoire utilisateur) ou
+  avec droits administrateur (Docker Compose) — voir [Démarrage](#démarrage)
 
 ---
 
 ## Démarrer
 
-### Prérequis : un JDK 21
-
-Archive `.zip` (Windows) ou `.tar.gz` (Linux, macOS) d'Eclipse Temurin 21,
-décompressée dans ton répertoire utilisateur. Pas d'installeur.
-
-```bash
-java -version   # doit afficher 21.x
-```
-
-### Prérequis : Maven
-
-Le projet est livré **sans Maven Wrapper**, pour ne pas embarquer un script
-que je n'ai pas pu tester. Deux options, toutes deux sans droits admin :
-
-1. **Maven portable** — décompresser `apache-maven-3.9.16-bin.zip` et ajouter
-   son `bin` au `PATH` utilisateur.
-2. **Générer le wrapper** une fois Maven disponible, puis n'utiliser que lui :
-   ```bash
-   mvn -N wrapper:wrapper -Dmaven=3.9.16
-   ```
-   Tu obtiens `mvnw` / `mvnw.cmd`, et Maven n'a plus besoin d'être installé.
-
-> Si ton réseau d'entreprise filtre Maven Central, configure le proxy dans
-> `~/.m2/settings.xml` avant la première build. C'est le blocage le plus
-> fréquent sur poste bridé.
-
-### Compiler et tester
-
-```bash
-mvn clean verify
-```
-
-Aucun service externe n'est nécessaire : les tests sont des tests unitaires purs,
-sans contexte Spring, sans base, sans broker.
-
-### Lancer
-
-Quatre terminaux, ou lance seulement ce dont tu as besoin :
-
-```bash
-mvn -pl order-service        spring-boot:run   # :8081
-mvn -pl inventory-service    spring-boot:run   # :8082
-mvn -pl payment-service      spring-boot:run   # :8083
-mvn -pl notification-service spring-boot:run   # :8084
-```
+Les deux procédures, avec ou sans droits administrateur, sont décrites dans la rubrique
+[Démarrage](#démarrage) en tête de ce README.
 
 ### Essayer
 
@@ -197,7 +317,8 @@ payment-service/     :8083 Encaissement simulé (déterministe)
 notification-service/:8084 Notification client (sans état)
 ```
 
-Chaque service a **sa propre base H2**, dans `~/orderflow-data/`. Aucune base
+Chaque service a **sa propre base H2** : un fichier dans le répertoire utilisateur (sans droits admin) ou un
+volume Docker dédié (avec droits admin). Aucune base
 partagée : c'est la règle qui rend l'architecture événementielle nécessaire
 plutôt que décorative.
 
@@ -216,8 +337,12 @@ configurable via `orderflow.payment.refusal-threshold`.
 
 ## Consulter les données
 
-Console H2 sur chaque service : `http://localhost:8081/h2-console`
-(JDBC URL `jdbc:h2:file:~/orderflow-data/orders`, utilisateur `sa`, pas de mot de passe).
+Console H2 sur chaque service : `http://localhost:8081/h2-console` (8082 inventory, 8083 payments), utilisateur
+`sa`, pas de mot de passe. JDBC URL :
+
+- sans droits admin : la valeur de `spring.datasource.url` du service, par exemple
+  `jdbc:h2:file:~/Users/jeanyves.ruffin/orderflow-data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL` ;
+- avec droits admin (Docker) : `jdbc:h2:file:/data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL`.
 
 Tables intéressantes :
 
