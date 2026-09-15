@@ -1,7 +1,6 @@
 package fr.orderflow.common.messaging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Implementation par defaut : n'envoie rien, se contente de tracer.
@@ -14,9 +13,8 @@ import org.slf4j.LoggerFactory;
  * dans {@link fr.orderflow.common.config.MessagingConfig}, ce qui rend le
  * basculement vers Kafka deterministe.
  */
+@Slf4j
 public class LoggingEventPublisher implements EventPublisher {
-
-    private static final Logger log = LoggerFactory.getLogger(LoggingEventPublisher.class);
 
     @Override
     public void publish(EventEnvelope envelope) {

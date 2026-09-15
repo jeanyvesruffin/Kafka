@@ -1,4 +1,4 @@
-package fr.orderflow.inventory.messaging;
+package fr.orderflow.payment.messaging;
 
 import fr.orderflow.common.messaging.EventEnvelope;
 import fr.orderflow.common.messaging.EventPublisher;
@@ -15,23 +15,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Publisher Kafka du service Stock.
+ * Publisher Kafka du service Paiement.
  *
- * <p>Envoi synchrone : {@code InventoryService} publie depuis sa transaction. Si
- * le broker refuse le message, l'exception annule la transaction (reservation et
- * {@code processed_events} compris) et l'evenement entrant sera relu. Un envoi
- * "fire and forget" validerait la reservation meme si l'evenement n'est jamais
- * parti : la saga resterait bloquee.
+ * <p>Envoi synchrone : {@code PaymentService} publie depuis sa transaction. Si le
+ * broker refuse le message, l'exception annule la transaction (paiement et
+ * {@code processed_events} compris) et {@code inventory.reserved} sera relu :
+ * aucun resultat de paiement n'est perdu.
  */
 @Component
 @ConditionalOnProperty(name = "orderflow.messaging.publisher", havingValue = "kafka")
 @RequiredArgsConstructor
-public class KafkaEventInventoryPublisher implements EventPublisher {
+public class KafkaEventPaymentPublisher implements EventPublisher {
 
     private static final long SEND_TIMEOUT_SECONDS = 10;
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-
 
     @Override
     public void publish(EventEnvelope envelope) {

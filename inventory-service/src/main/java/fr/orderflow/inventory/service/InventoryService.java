@@ -5,11 +5,13 @@ import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
 import fr.orderflow.inventory.domain.ProcessedEventEntity;
+import fr.orderflow.inventory.domain.ReservationEntity;
 import fr.orderflow.inventory.domain.StockEntity;
 import fr.orderflow.inventory.repository.ProcessedEventRepository;
+import fr.orderflow.inventory.repository.ReservationRepository;
 import fr.orderflow.inventory.repository.StockRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,28 +35,17 @@ import java.util.UUID;
  * projet et tu peux comparer leurs garanties. Migrer Inventory vers une outbox
  * est d'ailleurs un bon exercice supplementaire.
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class InventoryService {
 
-    private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
-
     private final StockRepository stockRepository;
+    private final ReservationRepository reservationRepository;
     private final ProcessedEventRepository processedEventRepository;
     private final EventPublisher eventPublisher;
     private final EventSerializer eventSerializer;
     private final Clock clock;
-
-    public InventoryService(StockRepository stockRepository,
-                            ProcessedEventRepository processedEventRepository,
-                            EventPublisher eventPublisher,
-                            EventSerializer eventSerializer,
-                            Clock clock) {
-        this.stockRepository = stockRepository;
-        this.processedEventRepository = processedEventRepository;
-        this.eventPublisher = eventPublisher;
-        this.eventSerializer = eventSerializer;
-        this.clock = clock;
-    }
 
     private static String newEventId() {
         return UUID.randomUUID()
@@ -91,6 +82,9 @@ public class InventoryService {
             stockRepository.findById(line.productId())
                     .orElseThrow(() -> new IllegalStateException("Produit inconnu : " + line.productId()))
                     .reserve(line.quantity());
+            reservationRepository.save(new ReservationEntity(
+                    UUID.randomUUID()
+                            .toString(), event.orderId(), line.productId(), line.quantity()));
         }
 
         log.info(
@@ -113,9 +107,10 @@ public class InventoryService {
      * distribuee. La reservation n'est pas annulee, elle est compensee par une
      * operation inverse.
      *
-     * <p>Robuste par nature : si la commande a ete annulee avant toute
-     * reservation (rejet stock), {@code release} ne trouve rien a liberer et ne
-     * fait rien de mal.
+     * <p>Seules les reservations enregistrees pour CETTE commande sont liberees,
+     * et non les lignes de l'evenement : si la commande a ete annulee avant toute
+     * reservation (rejet stock), il n'y a rien a liberer, et surtout pas le stock
+     * reserve par d'autres commandes sur le meme produit.
      */
     @Transactional
     public void handleOrderCancelled(OrderCancelledEvent event) {
@@ -125,11 +120,15 @@ public class InventoryService {
         }
         markProcessed(event.eventId(), event.eventType(), clock.instant());
 
-        for (OrderLine line : event.items()) {
-            stockRepository.findById(line.productId())
-                    .ifPresent(stock -> stock.release(line.quantity()));
+        List<ReservationEntity> reservations = reservationRepository.findByOrderId(event.orderId());
+        for (ReservationEntity reservation : reservations) {
+            stockRepository.findById(reservation.getProductId())
+                    .ifPresent(stock -> stock.release(reservation.getQuantity()));
         }
-        log.info("Stock libere (compensation) orderId={} raison={}", event.orderId(), event.reason());
+        reservationRepository.deleteAll(reservations);
+        log.info(
+                "Stock libere (compensation) orderId={} lignes={} raison={}",
+                event.orderId(), reservations.size(), event.reason());
     }
 
     // ------------------------------------------------------------------

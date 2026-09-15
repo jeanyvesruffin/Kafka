@@ -2,6 +2,7 @@ package fr.orderflow.order.messaging;
 
 import fr.orderflow.common.messaging.EventEnvelope;
 import fr.orderflow.common.messaging.EventPublisher;
+import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.KafkaException;
@@ -16,15 +17,12 @@ import java.util.concurrent.TimeoutException;
 
 @Component
 @ConditionalOnProperty(name = "orderflow.messaging.publisher", havingValue = "kafka")
+@RequiredArgsConstructor
 public class KafkaEventOrderPublisher implements EventPublisher {
 
     private static final long SEND_TIMEOUT_SECONDS = 10;
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-
-    public KafkaEventOrderPublisher(KafkaTemplate<String, String> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
-    }
 
 
     @Override

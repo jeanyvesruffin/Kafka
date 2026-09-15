@@ -10,8 +10,8 @@ import fr.orderflow.order.domain.OrderStatus;
 import fr.orderflow.order.domain.OutboxEventEntity;
 import fr.orderflow.order.repository.OrderRepository;
 import fr.orderflow.order.repository.OutboxEventRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,28 +34,16 @@ import java.util.UUID;
  * listener n'aura qu'a deserialiser l'evenement et appeler la bonne methode.
  * Aucune logique metier n'est a ecrire dans le listener.
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class OrderService {
-
-    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
     private final OutboxEventRepository outboxRepository;
     private final PriceCatalog priceCatalog;
     private final EventSerializer eventSerializer;
     private final Clock clock;
-
-    public OrderService(OrderRepository orderRepository,
-                        OutboxEventRepository outboxRepository,
-                        PriceCatalog priceCatalog,
-                        EventSerializer eventSerializer,
-                        Clock clock) {
-        this.orderRepository = orderRepository;
-        this.outboxRepository = outboxRepository;
-        this.priceCatalog = priceCatalog;
-        this.eventSerializer = eventSerializer;
-        this.clock = clock;
-    }
 
     // ------------------------------------------------------------------
     // Commande entrante (API REST)

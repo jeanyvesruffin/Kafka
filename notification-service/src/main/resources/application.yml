@@ -2,6 +2,10 @@ spring:
   application:
     name: notification-service
 
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+
 server:
   port: 8084
 

@@ -275,7 +275,7 @@ Ou depuis l'IDE : configurations Spring Boot d'IntelliJ, ou `launch.json` de VS 
 Cas d'école événementiel. **Toute la logique métier est écrite et testée ; la
 couche Kafka est à toi.** Voir [`TODO-KAFKA.md`](TODO-KAFKA.md).
 
-- **Java 25** · **Spring Boot 4.1.1** · **H2 embarqué** · **Maven**
+- **Java 25** · **Spring Boot 4.1.1** · **H2 embarqué** · **Maven** · **Lombok** (constructeurs, getters, loggers)
 - Deux modes de démarrage pour le même code : sans droits administrateur (tout depuis le répertoire utilisateur) ou
   avec droits administrateur (Docker Compose) — voir [Démarrage](#démarrage)
 
@@ -347,7 +347,7 @@ Console H2 sur chaque service : `http://localhost:8081/h2-console` (8082 invento
 Tables intéressantes :
 
 - `orders`, `order_items`, **`outbox_event`** (côté order)
-- `stock`, **`processed_events`** (côté inventory)
+- `stock`, **`processed_events`**, **`stock_reservation`** (côté inventory)
 - `payments`, `processed_events` (côté payment)
 
 Le contenu de `outbox_event` et `processed_events` est le meilleur support pour
@@ -443,11 +443,13 @@ orderflow:
     poll-interval-ms: 1000
 ```
 
-* Ajout des `Publisher`
-  Kafka [KafkaEventPublisher.java](order-service/src/main/java/fr/orderflow/order/messaging/KafkaEventPublisher.java) en
-  lieu et place du
-  LoggingEventPublisher [LoggingEventPublisher.java](orderflow-common/src/main/java/fr/orderflow/common/messaging/LoggingEventPublisher.java)
-  doit :
+* Ajout des `Publisher` Kafka, un par service producteur, en lieu et place du
+  LoggingEventPublisher [LoggingEventPublisher.java](orderflow-common/src/main/java/fr/orderflow/common/messaging/LoggingEventPublisher.java) :
+  [KafkaEventOrderPublisher.java](order-service/src/main/java/fr/orderflow/order/messaging/KafkaEventOrderPublisher.java),
+  [KafkaEventInventoryPublisher.java](inventory-service/src/main/java/fr/orderflow/inventory/messaging/KafkaEventInventoryPublisher.java)
+  et, en phase 2,
+  [KafkaEventPaymentPublisher.java](payment-service/src/main/java/fr/orderflow/payment/messaging/KafkaEventPaymentPublisher.java).
+  Chacun doit :
     * être un `@Component` pour que Spring le détecte comme un bean et le construit au runtime.
     * implémente `EventPublisher`, qui est déja prévu pour surcharger une méthode retournant topic key headers
       payload, qui seront nécessaires au `Publisher` Kafka.
@@ -456,6 +458,14 @@ orderflow:
       qui permet de créer des enregistrements.
     * ajouter à la variable de type `ProducerRecord` la liste contenu du header, au besoin.
     * envoi le `message` dans un `topic`.
+    * **attendre l'acquittement du broker** (`send(...).get(timeout)`) : l'envoi doit être synchrone. Un simple
+      `send(...)` rend la main tout de suite, et un refus du broker passerait inaperçu :
+        * côté order-service, le relais d'outbox marquerait la ligne publiée alors que rien n'est parti ;
+        * côté inventory-service et payment-service, qui publient depuis leur transaction, la réservation (ou le
+          paiement) serait validée sans que l'événement parte, et la saga resterait bloquée.
+
+      Avec l'envoi synchrone, l'exception empêche le `markPublished` (order) ou annule la transaction (inventory,
+      payment) : le message entrant est relu et rien n'est perdu (NF-01).
     * La valeur du paramètre `orderflow.messaging.publisher` doit être `kafka` (vs logging initialement).
     * Exemple de `Publisher` :
 
@@ -463,11 +473,13 @@ orderflow:
 
 @Component
 @ConditionalOnProperty(name = "orderflow.messaging.publisher", havingValue = "kafka")
-public class KafkaEventPublisher implements EventPublisher {
+public class KafkaEventOrderPublisher implements EventPublisher {
+
+    private static final long SEND_TIMEOUT_SECONDS = 10;
 
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public KafkaEventPublisher(KafkaTemplate<String, String> kafkaTemplate) {
+    public KafkaEventOrderPublisher(KafkaTemplate<String, String> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 
@@ -483,8 +495,22 @@ public class KafkaEventPublisher implements EventPublisher {
         envelope.headers()
                 .forEach((stringKey, stringValue) -> stringStringProducerRecord.headers()
                         .add(stringKey, stringValue.getBytes(StandardCharsets.UTF_8)));
-        kafkaTemplate.send(stringStringProducerRecord);
 
+        try {
+            kafkaTemplate.send(stringStringProducerRecord)
+                    .get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread()
+                    .interrupt();
+            throw new KafkaException("Envoi interrompu topic=" + envelope.topic(), e);
+        } catch (ExecutionException e) {
+            throw new KafkaException(
+                    "Envoi refuse par le broker topic=" + envelope.topic() + " : " + e.getCause()
+                            .getMessage(), e.getCause());
+        } catch (TimeoutException e) {
+            throw new KafkaException(
+                    "Pas d'acquittement du broker sous " + SEND_TIMEOUT_SECONDS + " s topic=" + envelope.topic(), e);
+        }
     }
 }
 ```
@@ -517,13 +543,13 @@ public class KafkaEventPublisher implements EventPublisher {
 ```java
 
 @Component
-public class InventoryEventListen {
+public class InventoryEventListener {
 
     private final OrderService orderService;
 
     private final EventSerializer eventSerializer;
 
-    public InventoryEventListen(OrderService orderService, EventSerializer eventSerializer) {
+    public InventoryEventListener(OrderService orderService, EventSerializer eventSerializer) {
         this.orderService = orderService;
         this.eventSerializer = eventSerializer;
     }
@@ -592,6 +618,15 @@ public class KafkaTopicsOrderConfig {
 }
 ```
 
+* Chaque service déclare les topics qu'il **produit**. Un topic non déclaré est créé à la volée par le broker, avec
+  ses réglages par défaut (`num.partitions`, facteur de réplication) plutôt que les nôtres :
+
+| Service           | Classe                       | Topics                                                     |
+|-------------------|------------------------------|------------------------------------------------------------|
+| order-service     | `KafkaTopicsOrderConfig`     | `orders.created`, `orders.confirmed`, `orders.cancelled`   |
+| inventory-service | `KafkaTopicsInventoryConfig` | `inventory.reserved`, `inventory.rejected`                 |
+| payment-service   | `KafkaTopicsPaymentConfig`   | `payments.completed`, `payments.failed` (ajouté en phase 2) |
+
 > Pourquoi 3 partitions plutôt que 10
 > Parallélisme : dans un `consumer group`, une partition n'est lue que par un seul `consumer`. Le nombre de partitions
 > fixe
@@ -614,9 +649,9 @@ spring:
   kafka:
     consumer:
       auto-offset-reset: earliest
-  orderflow:
-    messaging:
-      publisher: kafka
+orderflow:
+  messaging:
+    publisher: kafka
 ```
 
 ```yaml
@@ -625,12 +660,18 @@ spring:
   kafka:
     consumer:
       auto-offset-reset: earliest
-    orderflow:
-      messaging:
-        publisher: kafka
-      outbox:
-        poll-interval-ms: 3600000
+orderflow:
+  messaging:
+    publisher: kafka
+  outbox:
+    poll-interval-ms: 3600000
 ```
+
+> ⚠️ `orderflow` est une clé racine, au même niveau que `spring`. Placée sous `spring`, la propriété devient
+> `spring.orderflow.messaging.publisher` et n'est jamais lue.
+>
+> Le `application.yml` de `src/test/resources` **remplace** celui de `src/main/resources` pendant les tests : il doit
+> contenir tout ce dont le contexte a besoin (datasource H2 en mémoire, Kafka, propriétés `orderflow`).
 
 * `consumer.auto-offset-reset: earliest` : Permet aux listeners de ne pas rater les premiers messages. Si ce paramètre
   n'est pas présent, alors, le listener mettrait plusieurs secondes à rejoindre son groupe. Le message partirait alors
@@ -640,10 +681,10 @@ spring:
   verrait jamais.
 * `orderflow.messaging.publisher: kafka` : Indique que l'application doit utiliser Apache Kafka comme infrastructure de
   messagerie pour l'envoi de ces messages (plutot que logging)
-* `consumer.outbox.poll-interval-ms: 3600000` : il reste désactivé en test, et le test
+* `orderflow.outbox.poll-interval-ms: 3600000` : il reste désactivé en test, et le test
   appelle `outboxRelay.publishPending()` quand il en a besoin.
 
-![OutboxRelay](.\Docs\OutboxRelay.png)
+![OutboxRelay](Docs/OutboxRelay.png)
 
 * Fonctionnement de `OutboxRelay` :
     * **Étape 1** : l'événement n'est plus envoyé, il est écrit en base dans la même transaction que la commande. Soit
@@ -666,6 +707,16 @@ spring:
       topics déclarés sera créé avec 3 partitions. Indique au broker intégré quels topics il doit créer 
       automatiquement dès son démarrage.
     * `@DirtiesContext` : garantit qu'on repart d'une feuille blanche (nouveau conteneur Spring, nouveau broker Kafka arrêté et relancé).
+* Tests de la phase 1 :
+
+| Classe de test                     | Type                                | Ce qui est vérifié                                                                                                                   |
+|------------------------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `OrderServiceTest`                 | unitaire (Mockito)                  | commande + ligne d'outbox dans la même transaction ; annulation avec les lignes à compenser ; idempotence ; état terminal            |
+| `InventoryServiceTest`             | unitaire (Mockito)                  | réservation, rejet, idempotence, compensation (+ phase 2 : annuler une commande rejetée ne libère pas le stock des autres)            |
+| `KafkaEventOrderPublisherTest`     | unitaire (`KafkaTemplate` bouchonné) | clé et en-têtes transmis ; un refus du broker lève une exception                                                                    |
+| `KafkaEventInventoryPublisherTest` | unitaire (`KafkaTemplate` bouchonné) | idem pour inventory-service (ajouté avec le passage à l'envoi synchrone)                                                            |
+| `EmbeddedKafkaOrderTest`           | intégration `@EmbeddedKafka`        | relais d'outbox → `orders.created` ; `inventory.reserved` / `inventory.rejected` font avancer la commande                            |
+| `EmbeddedKafkaInventoryTest`       | intégration `@EmbeddedKafka`        | `orders.created` → réservation + `inventory.reserved` ; stock insuffisant → `inventory.rejected` ; redélivrance ; compensation      |
   
 
 ## DOD Phase 1
@@ -677,10 +728,174 @@ spring:
 
 # [Phase 2 — Payment + saga complète](TODO-KAFKA.md#phase-2)
 
+La saga est **chorégraphiée** : aucun service n'appelle les autres, chacun réagit aux événements qu'il consomme et
+publie le suivant.
+
+| Service              | Listener (package `messaging`) | Topic(s) consommé(s)                         | Méthode appelée                                                        | Publie                                                  |
+|----------------------|--------------------------------|----------------------------------------------|------------------------------------------------------------------------|---------------------------------------------------------|
+| inventory-service    | `OrderEventListener`           | `orders.created`                             | `inventoryService.handleOrderCreated(event, correlationId)`            | `inventory.reserved` ou `inventory.rejected`            |
+| inventory-service    | `OrderEventListener`           | `orders.cancelled`                           | `inventoryService.handleOrderCancelled(event)` (compensation)          | —                                                       |
+| payment-service      | `InventoryEventListener`       | `inventory.reserved`                         | `paymentService.handleInventoryReserved(event, correlationId)`         | `payments.completed` ou `payments.failed`               |
+| order-service        | `InventoryEventListener`       | `inventory.reserved`, `inventory.rejected`   | `orderService.onInventoryReserved(...)`, `onInventoryRejected(...)`    | `orders.cancelled` si rejet (via l'outbox)              |
+| order-service        | `PaymentEventListener`         | `payments.completed`, `payments.failed`      | `orderService.onPaymentCompleted(...)`, `onPaymentFailed(...)`         | `orders.confirmed` ou `orders.cancelled` (via l'outbox) |
+| notification-service | `OrderEventListener`           | `orders.confirmed`, `orders.cancelled`       | `notificationService.notifyCustomer(event, correlationId)`             | —                                                       |
+
+> `payments.completed` peut arriver chez order-service **avant** `inventory.reserved` : ce sont deux topics distincts,
+> sans ordre garanti entre eux. Ce n'est pas un problème : `OrderEntity.transitionTo(...)` accepte `CREATED → CONFIRMED`
+> et ignore ensuite toute transition depuis un état terminal.
+
+## Payment
+
+* Listener [InventoryEventListener.java](payment-service/src/main/java/fr/orderflow/payment/messaging/InventoryEventListener.java)
+  sur `inventory.reserved`, groupe `payment-service` (indépendant du groupe `order-service` qui lit le même topic).
+* Publisher [KafkaEventPaymentPublisher.java](payment-service/src/main/java/fr/orderflow/payment/messaging/KafkaEventPaymentPublisher.java),
+  même modèle synchrone que celui d'order-service. **Sans lui, payment-service ne démarre pas** : `PaymentService` a
+  besoin d'un bean `EventPublisher`, et le `LoggingEventPublisher` n'est créé que si
+  `orderflow.messaging.publisher: logging` :
+
+```
+No qualifying bean of type 'fr.orderflow.common.messaging.EventPublisher' available
+```
+
+* Topics `payments.*` déclarés par
+  [KafkaTopicsPaymentConfig.java](payment-service/src/main/java/fr/orderflow/payment/messaging/KafkaTopicsPaymentConfig.java).
+* `application.yml` de payment-service (notification-service reçoit le même bloc `consumer`) :
+
+```yaml
+spring:
+  kafka:
+    admin:
+      fail-fast: true               # crée ses topics au démarrage, échoue si le broker est absent
+    consumer:
+      auto-offset-reset: earliest
+```
+
+> Sans `auto-offset-reset: earliest`, un groupe de consommateurs qui démarre pour la première fois se place à la fin
+> du topic (`latest`) : les événements publiés avant son premier démarrage ne seraient jamais traités.
+
+## Notification
+
+* [OrderEventListener.java](notification-service/src/main/java/fr/orderflow/notification/messaging/OrderEventListener.java)
+  écoute les deux topics terminaux dans une seule méthode, et choisit le type à désérialiser grâce à l'en-tête
+  `eventType` :
+
+```java
+@KafkaListener(topics = { Topics.ORDERS_CONFIRMED, Topics.ORDERS_CANCELLED },
+        groupId = "notification-service")
+public void onTerminalEvent(@Payload String payload,
+                            @Header(EventHeaders.EVENT_TYPE) String eventType,
+                            @Header(EventHeaders.CORRELATION_ID) String correlationId) {
+    OrderFlowEvent event = switch (eventType) {
+        case OrderConfirmedEvent.TYPE -> eventSerializer.fromJson(payload, OrderConfirmedEvent.class);
+        case OrderCancelledEvent.TYPE -> eventSerializer.fromJson(payload, OrderCancelledEvent.class);
+        default -> throw new IllegalArgumentException("Type inattendu : " + eventType);
+    };
+    notificationService.notifyCustomer(event, correlationId);
+}
+```
+
+> Ce service n'a pas de table `processed_events` : en at-least-once, un client peut recevoir deux fois la même
+> notification. Acceptable pour un e-mail, jamais pour un débit bancaire.
+
+## Corrections apportées lors de l'intégration
+
+| # | Problème constaté                                                                     | Cause                                                                                                                       | Correction                                                                                  |
+|---|---------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| 1 | payment-service ne démarre pas                                                        | aucun `EventPublisher` Kafka dans le module                                                                                 | `KafkaEventPaymentPublisher` + `KafkaTopicsPaymentConfig`                                   |
+| 2 | `GET /api/orders/{id}` et `GET /api/orders` → HTTP 500 (`LazyInitializationException`) | `open-in-view: false` : la réponse est construite après la fin de la transaction, et `items` est chargé paresseusement      | `@EntityGraph(attributePaths = "items")` dans `OrderRepository`                             |
+| 3 | annuler une commande rejetée libère le stock réservé par d'autres commandes           | `StockEntity.release()` plafonne au stock réservé **total** du produit, toutes commandes confondues                         | table `stock_reservation` : la compensation ne libère que les réservations de cette commande |
+| 4 | un événement Inventory peut être perdu                                                | envoi « fire and forget » depuis la transaction                                                                             | envoi synchrone, comme dans order-service (voir la phase 1)                                 |
+| 5 | des consumers ratent les messages publiés avant leur premier démarrage                | pas d'`auto-offset-reset` dans payment-service et notification-service                                                      | `auto-offset-reset: earliest`                                                               |
+| 6 | nommage                                                                               | `InventoryEventListen`, `notificationEventListen` (minuscule), bean `orderTopics` copié-collé dans inventory-service        | `InventoryEventListener`, `OrderEventListener`, `inventoryTopics`                           |
+
+### Chargement des lignes de commande
+
+```java
+public interface OrderRepository extends JpaRepository<OrderEntity, String> {
+
+    @Override
+    @EntityGraph(attributePaths = "items")
+    Optional<OrderEntity> findById(String id);
+
+    @Override
+    @EntityGraph(attributePaths = "items")
+    List<OrderEntity> findAll();
+
+    @EntityGraph(attributePaths = "items")
+    List<OrderEntity> findByStatus(OrderStatus status);
+}
+```
+
+### Compensation limitée à la commande annulée
+
+Scénario du bug, avec `sku-001` (100 en stock) :
+
+1. Commande A `sku-001 x2` : réservée (disponible 98, réservé 2).
+2. Commande B `sku-001 x999` : rejetée, puis annulée. Son `OrderCancelled` porte la ligne `sku-001 x999`.
+3. **Avant** : `release(999)` libérait `min(999, 2) = 2`. La réservation de A disparaissait (disponible 100,
+   réservé 0) : le stock pouvait être vendu deux fois.
+4. **Après** : aucune réservation n'est enregistrée pour B, rien n'est libéré (disponible 98, réservé 2).
+
+```java
+// InventoryService.handleOrderCreated : chaque réservation est enregistrée pour sa commande
+reservationRepository.save(new ReservationEntity(
+        UUID.randomUUID().toString(), event.orderId(), line.productId(), line.quantity()));
+
+// InventoryService.handleOrderCancelled : on ne libère que ce qui a été réservé pour CETTE commande
+List<ReservationEntity> reservations = reservationRepository.findByOrderId(event.orderId());
+for (ReservationEntity reservation : reservations) {
+    stockRepository.findById(reservation.getProductId())
+            .ifPresent(stock -> stock.release(reservation.getQuantity()));
+}
+reservationRepository.deleteAll(reservations);
+```
+
+## Tests Phase 2
+
+| Classe de test                   | Type                                 | Ce qui est vérifié                                                                                                                         |
+|----------------------------------|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `EmbeddedKafkaPaymentTest`       | intégration `@EmbeddedKafka`         | `inventory.reserved` → `payments.completed` sous le plafond, `payments.failed` au-dessus ; un message redélivré ne débite qu'une fois |
+| `EmbeddedKafkaOrderTest`         | intégration `@EmbeddedKafka`         | `payments.completed` → `CONFIRMED` + `orders.confirmed` ; `payments.failed` → `CANCELLED` + `orders.cancelled` avec les lignes ; idempotence ; lecture des commandes hors transaction (correction 2) |
+| `KafkaEventPaymentPublisherTest` | unitaire (`KafkaTemplate` bouchonné) | clé et en-têtes transmis ; un refus du broker lève une exception                                                                           |
+| `InventoryServiceTest`           | unitaire (Mockito)                   | annuler une commande rejetée ne libère pas le stock réservé par une autre (correction 3)                                                   |
+| `PaymentServiceTest`             | unitaire (Mockito)                   | paiement accepté / refusé selon le plafond ; idempotence                                                                                  |
+
+* `src/test/resources/application.yml` de payment-service :
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:h2:mem:payments-test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+orderflow:
+  messaging:
+    publisher: kafka
+  payment:
+    refusal-threshold: 1000.00
+```
+
+* Résultat de `mvn clean verify` : **33 tests, 0 échec** (order-service 13, inventory-service 12, payment-service 8).
+
 ## DOD Phase 2
 
-![Topic: orders.created](Docs/PHASE_1_DOD_orders_created.png)
-![Topic: inventory.reserved](Docs/PHASE_1_DOD_inventory_reserved.png)
+> Commander `sku-001 x2` aboutit à `CONFIRMED`, et commander `sku-005 x1` (1250,00 € > plafond) aboutit à `CANCELLED`
+> **avec le stock libéré**.
+
+| Scénario ([`http/orders.http`](http/orders.http)) | Résultat attendu                                                                                                   |
+|---------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `sku-001 x2` (39,80 €)                            | `payments.completed` → `CONFIRMED`, `orders.confirmed` publié, notification « commande confirmée »                 |
+| `sku-005 x1` (1250,00 € > 1000 €)                 | `payments.failed` → `CANCELLED`, `orders.cancelled` → stock `sku-005` revenu à 2 disponibles, 0 réservé           |
+| `sku-005 x5`                                      | `inventory.rejected` → `CANCELLED`, stock inchangé, aucune autre réservation libérée                              |
+
+- [x] Chaque étape de la saga couverte par les tests `@EmbeddedKafka`, service par service
+- [x] Parcours « rejet de stock » vérifié de bout en bout sous Docker (jusqu'à la notification d'annulation)
+- [ ] Parcours nominal et refus de paiement à rejouer de bout en bout depuis la correction de payment-service
+- [ ] Captures AKHQ à ajouter : `payments.completed`, `payments.failed`, `orders.confirmed`, `orders.cancelled`
 
 
 </details>

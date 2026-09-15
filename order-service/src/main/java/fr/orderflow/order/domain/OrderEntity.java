@@ -1,14 +1,25 @@
 package fr.orderflow.order.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Commande. Lombok ne genere ici que les getters et le constructeur vide
+ * exige par JPA : pas de {@code @Data}, {@code @EqualsAndHashCode} ni
+ * {@code @ToString}, qui parcourraient la collection {@code items} (chargement
+ * paresseux force, boucle infinie avec la reference inverse).
+ */
 @Entity
 @Table(name = "orders")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderEntity {
 
     @Id
@@ -36,10 +47,6 @@ public class OrderEntity {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItemEntity> items = new ArrayList<>();
-
-    protected OrderEntity() {
-        // requis par JPA
-    }
 
     public OrderEntity(String id, String customerId, BigDecimal totalAmount, Instant now) {
         this.id = id;
@@ -74,37 +81,5 @@ public class OrderEntity {
         this.cancellationReason = reason;
         this.updatedAt = now;
         return true;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getCustomerId() {
-        return customerId;
-    }
-
-    public OrderStatus getStatus() {
-        return status;
-    }
-
-    public BigDecimal getTotalAmount() {
-        return totalAmount;
-    }
-
-    public String getCancellationReason() {
-        return cancellationReason;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public List<OrderItemEntity> getItems() {
-        return items;
     }
 }

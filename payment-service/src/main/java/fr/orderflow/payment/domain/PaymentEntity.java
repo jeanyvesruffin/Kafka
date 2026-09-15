@@ -1,12 +1,19 @@
 package fr.orderflow.payment.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "payments")
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentEntity {
 
     @Id
@@ -28,42 +35,4 @@ public class PaymentEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    protected PaymentEntity() {
-        // requis par JPA
-    }
-
-    public PaymentEntity(String id, String orderId, PaymentStatus status,
-                         BigDecimal amount, String failureReason, Instant createdAt) {
-        this.id = id;
-        this.orderId = orderId;
-        this.status = status;
-        this.amount = amount;
-        this.failureReason = failureReason;
-        this.createdAt = createdAt;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getOrderId() {
-        return orderId;
-    }
-
-    public PaymentStatus getStatus() {
-        return status;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public String getFailureReason() {
-        return failureReason;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
 }

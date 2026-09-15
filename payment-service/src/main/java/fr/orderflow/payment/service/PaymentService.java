@@ -12,8 +12,8 @@ import fr.orderflow.payment.domain.PaymentStatus;
 import fr.orderflow.payment.domain.ProcessedEventEntity;
 import fr.orderflow.payment.repository.PaymentRepository;
 import fr.orderflow.payment.repository.ProcessedEventRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +28,10 @@ import java.util.UUID;
  * <p>Point d'entree unique : {@link #handleInventoryReserved}, idempotent,
  * a appeler depuis ton futur listener sur {@code inventory.reserved}.
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class PaymentService {
-
-    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private final PaymentRepository paymentRepository;
     private final ProcessedEventRepository processedEventRepository;
@@ -39,20 +39,6 @@ public class PaymentService {
     private final EventPublisher eventPublisher;
     private final EventSerializer eventSerializer;
     private final Clock clock;
-
-    public PaymentService(PaymentRepository paymentRepository,
-                          ProcessedEventRepository processedEventRepository,
-                          PaymentGatewaySimulator gateway,
-                          EventPublisher eventPublisher,
-                          EventSerializer eventSerializer,
-                          Clock clock) {
-        this.paymentRepository = paymentRepository;
-        this.processedEventRepository = processedEventRepository;
-        this.gateway = gateway;
-        this.eventPublisher = eventPublisher;
-        this.eventSerializer = eventSerializer;
-        this.clock = clock;
-    }
 
     private static String newEventId() {
         return UUID.randomUUID()
