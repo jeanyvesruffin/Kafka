@@ -3,6 +3,7 @@ package fr.orderflow.order.api;
 import fr.orderflow.order.domain.OrderStatus;
 import fr.orderflow.order.service.OrderService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,13 +13,10 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
+@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
-
-    public OrderController(OrderService orderService) {
-        this.orderService = orderService;
-    }
 
     /**
      * Le {@code correlationId} entre par l'en-tete HTTP s'il est fourni, sinon

@@ -6,6 +6,7 @@ import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
 import fr.orderflow.order.api.CreateOrderRequest;
+import fr.orderflow.order.api.OrderResponse;
 import fr.orderflow.order.domain.OrderEntity;
 import fr.orderflow.order.domain.OrderStatus;
 import fr.orderflow.order.domain.OutboxEventEntity;
@@ -130,6 +131,23 @@ class EmbeddedKafkaOrderTest {
         awaitStatus(order.getId(), OrderStatus.CANCELLED);
         assertThat(orderService.findById(order.getId())
                 .getCancellationReason()).isEqualTo("Stock insuffisant pour le produit sku-001");
+    }
+
+    @Test
+    @DisplayName("Une commande relue hors transaction expose ses lignes (GET /api/orders et /api/orders/{id})")
+    void readOrders_exposeItemsOutsideTransaction() {
+        OrderEntity order = newOrder();
+
+        OrderResponse byId = OrderResponse.from(orderService.findById(order.getId()));
+        List<OrderResponse> byStatus = orderService.findAll(OrderStatus.CREATED)
+                .stream()
+                .map(OrderResponse::from)
+                .toList();
+
+        assertThat(byId.items()).extracting(OrderResponse.Line::productId, OrderResponse.Line::quantity)
+                .containsExactly(tuple("sku-001", 2));
+        assertThat(byStatus).extracting(OrderResponse::orderId)
+                .contains(order.getId());
     }
 
     @Test

@@ -104,6 +104,10 @@ et que tu vois les messages passer dans AKHQ.
 - [x] `fr.orderflow.payment.messaging.InventoryEventListener` → `paymentService.handleInventoryReserved(...)`
 - [x] `fr.orderflow.order.messaging.*Listener` pour les 4 topics consommés par order-service
 - [x] `fr.orderflow.notification.messaging.*Listener` pour les 2 topics terminaux
+- [x] `fr.orderflow.payment.messaging.KafkaEventPaymentPublisher` (sans lui, payment-service ne démarre pas) et
+  `KafkaTopicsPaymentConfig` pour les topics `payments.*`
+- [x] Compensation limitée aux réservations de la commande annulée (`stock_reservation`) : annuler une commande
+  rejetée ne libère plus le stock réservé par les autres
 
 **Validé quand** : commander `sku-001 x2` aboutit à `CONFIRMED`, et commander
 `sku-005 x1` (1250,00 € > plafond) aboutit à `CANCELLED` **avec le stock libéré**.

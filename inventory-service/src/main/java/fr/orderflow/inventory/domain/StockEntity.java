@@ -1,6 +1,9 @@
 package fr.orderflow.inventory.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * Stock d'un produit.
@@ -14,6 +17,8 @@ import jakarta.persistence.*;
  */
 @Entity
 @Table(name = "stock")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class StockEntity {
 
     @Id
@@ -29,10 +34,6 @@ public class StockEntity {
     @Version
     @Column(name = "version")
     private long version;
-
-    protected StockEntity() {
-        // requis par JPA
-    }
 
     public StockEntity(String productId, int quantityAvailable) {
         this.productId = productId;
@@ -61,17 +62,5 @@ public class StockEntity {
         int toRelease = Math.min(quantity, quantityReserved);
         this.quantityReserved -= toRelease;
         this.quantityAvailable += toRelease;
-    }
-
-    public String getProductId() {
-        return productId;
-    }
-
-    public int getQuantityAvailable() {
-        return quantityAvailable;
-    }
-
-    public int getQuantityReserved() {
-        return quantityReserved;
     }
 }

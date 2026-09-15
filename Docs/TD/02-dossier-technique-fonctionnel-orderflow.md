@@ -197,6 +197,8 @@ service métier, et ne réagit qu'aux événements Kafka (sauf l'API REST d'entr
 
 - `stock (product_id, sku, quantity_available, quantity_reserved)`
 - `processed_events (event_id primary key, processed_at)` — cf. §6.2
+- `stock_reservation (id, order_id, product_id, quantity)` — réservations par commande : la compensation ne libère
+  que celles de la commande annulée
 
 **Payment Service** — `~/orderflow-data/payments.mv.db`
 

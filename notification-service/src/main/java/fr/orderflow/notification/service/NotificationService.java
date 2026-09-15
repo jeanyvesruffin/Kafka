@@ -3,8 +3,7 @@ package fr.orderflow.notification.service;
 import fr.orderflow.common.event.OrderCancelledEvent;
 import fr.orderflow.common.event.OrderConfirmedEvent;
 import fr.orderflow.common.event.OrderFlowEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -17,10 +16,9 @@ import org.springframework.stereotype.Service;
  * <p>Le {@code switch} sur l'interface scellee est exhaustif : le compilateur
  * refusera de compiler si tu ajoutes un evenement terminal sans traiter son cas.
  */
+@Slf4j
 @Service
 public class NotificationService {
-
-    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     public void notifyCustomer(OrderFlowEvent event, String correlationId) {
         String message = switch (event) {

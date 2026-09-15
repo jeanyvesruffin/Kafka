@@ -14,7 +14,7 @@ public class KafkaTopicsInventoryConfig {
     private static final int REPLICAS = 1; // un seul broker en local
 
     @Bean
-    public KafkaAdmin.NewTopics orderTopics() {
+    public KafkaAdmin.NewTopics inventoryTopics() {
         return new KafkaAdmin.NewTopics(
                 TopicBuilder.name(Topics.INVENTORY_RESERVED)
                         .partitions(PARTITIONS)

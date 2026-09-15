@@ -1,6 +1,5 @@
-# Configuration active uniquement pour les tests Spring que TU ajouteras
-# (@SpringBootTest, @DataJpaTest, @EmbeddedKafka...).
-# Les tests livres sont unitaires purs et ne chargent aucun contexte.
+# Configuration des tests Spring (@SpringBootTest + @EmbeddedKafka).
+# Elle remplace l'application.yml principal : tout ce dont le contexte a besoin est ici.
 
 spring:
   datasource:
@@ -8,3 +7,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+
+orderflow:
+  messaging:
+    publisher: kafka
+  payment:
+    refusal-threshold: 1000.00

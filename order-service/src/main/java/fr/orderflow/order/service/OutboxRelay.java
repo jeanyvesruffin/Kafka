@@ -5,8 +5,8 @@ import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.order.domain.OutboxEventEntity;
 import fr.orderflow.order.repository.OutboxEventRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Limit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -34,23 +34,16 @@ import java.util.Map;
  * en place : verrouillage pessimiste pour supporter plusieurs instances,
  * publication asynchrone avec callback, ou bascule vers du CDC (Debezium).
  */
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class OutboxRelay {
 
-    private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
     private static final int BATCH_SIZE = 100;
 
     private final OutboxEventRepository outboxRepository;
     private final EventPublisher eventPublisher;
     private final Clock clock;
-
-    public OutboxRelay(OutboxEventRepository outboxRepository,
-                       EventPublisher eventPublisher,
-                       Clock clock) {
-        this.outboxRepository = outboxRepository;
-        this.eventPublisher = eventPublisher;
-        this.clock = clock;
-    }
 
     @Scheduled(fixedDelayString = "${orderflow.outbox.poll-interval-ms:1000}")
     @Transactional

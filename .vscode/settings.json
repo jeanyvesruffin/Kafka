@@ -23,6 +23,8 @@
   // --- .idea/compiler.xml : processeurs d'annotations + option -parameters ---
   // Rien a declarer : l'extension Java lit le pom.xml (m2e), et le parent
   // spring-boot-starter-parent active deja <parameters>true</parameters>.
+  // Lombok : support integre a l'extension Java (equivalent du plugin IntelliJ).
+  "java.jdt.ls.lombokSupport.enabled": true,
 
   // --- .idea/codeStyles : profil "Default" d'IntelliJ ------------------------
   "[java]": {

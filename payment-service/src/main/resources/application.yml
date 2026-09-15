@@ -18,6 +18,12 @@ spring:
       enabled: true
       path: /h2-console
 
+  kafka:
+    admin:
+      fail-fast: true
+    consumer:
+      auto-offset-reset: earliest
+
 server:
   port: 8083
 

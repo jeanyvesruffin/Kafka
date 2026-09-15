@@ -4,6 +4,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
@@ -20,6 +24,9 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "processed_events")
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProcessedEventEntity {
 
     @Id
@@ -31,18 +38,4 @@ public class ProcessedEventEntity {
 
     @Column(name = "processed_at", nullable = false)
     private Instant processedAt;
-
-    protected ProcessedEventEntity() {
-        // requis par JPA
-    }
-
-    public ProcessedEventEntity(String eventId, String eventType, Instant processedAt) {
-        this.eventId = eventId;
-        this.eventType = eventType;
-        this.processedAt = processedAt;
-    }
-
-    public String getEventId() {
-        return eventId;
-    }
 }

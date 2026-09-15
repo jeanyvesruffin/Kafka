@@ -1,6 +1,9 @@
 package fr.orderflow.order.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
@@ -15,6 +18,8 @@ import java.time.Instant;
 @Entity
 @Table(name = "outbox_event",
         indexes = @Index(name = "idx_outbox_unpublished", columnList = "published, created_at"))
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OutboxEventEntity {
 
     @Id
@@ -52,10 +57,6 @@ public class OutboxEventEntity {
     @Column(name = "published_at")
     private Instant publishedAt;
 
-    protected OutboxEventEntity() {
-        // requis par JPA
-    }
-
     public OutboxEventEntity(String id, String aggregateId, String eventId, String eventType,
                              String topic, String payload, String correlationId, Instant createdAt) {
         this.id = id;
@@ -72,45 +73,5 @@ public class OutboxEventEntity {
     public void markPublished(Instant now) {
         this.published = true;
         this.publishedAt = now;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getAggregateId() {
-        return aggregateId;
-    }
-
-    public String getEventId() {
-        return eventId;
-    }
-
-    public String getEventType() {
-        return eventType;
-    }
-
-    public String getTopic() {
-        return topic;
-    }
-
-    public String getPayload() {
-        return payload;
-    }
-
-    public String getCorrelationId() {
-        return correlationId;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public boolean isPublished() {
-        return published;
-    }
-
-    public Instant getPublishedAt() {
-        return publishedAt;
     }
 }

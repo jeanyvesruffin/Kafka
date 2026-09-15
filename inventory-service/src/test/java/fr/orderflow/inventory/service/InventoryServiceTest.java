@@ -6,8 +6,10 @@ import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
 import fr.orderflow.inventory.domain.ProcessedEventEntity;
+import fr.orderflow.inventory.domain.ReservationEntity;
 import fr.orderflow.inventory.domain.StockEntity;
 import fr.orderflow.inventory.repository.ProcessedEventRepository;
+import fr.orderflow.inventory.repository.ReservationRepository;
 import fr.orderflow.inventory.repository.StockRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +33,7 @@ class InventoryServiceTest {
     private StockEntity stock;
     private List<EventEnvelope> published;
     private Set<String> processedIds;
+    private List<ReservationEntity> reservations;
     private InventoryService inventoryService;
     private EventSerializer eventSerializer;
 
@@ -65,11 +68,31 @@ class InventoryServiceTest {
                     return inv.getArgument(0);
                 });
 
+        reservations = new ArrayList<>();
+        var reservationRepository = Mockito.mock(ReservationRepository.class);
+        Mockito.when(reservationRepository.save(Mockito.any()))
+                .thenAnswer(inv -> {
+                    reservations.add(inv.getArgument(0, ReservationEntity.class));
+                    return inv.getArgument(0);
+                });
+        Mockito.when(reservationRepository.findByOrderId(Mockito.anyString()))
+                .thenAnswer(inv -> reservations.stream()
+                        .filter(r -> r.getOrderId()
+                                .equals(inv.getArgument(0, String.class)))
+                        .toList());
+        Mockito.doAnswer(inv -> {
+                    inv.<Iterable<ReservationEntity>>getArgument(0)
+                            .forEach(reservations::remove);
+                    return null;
+                })
+                .when(reservationRepository)
+                .deleteAll(Mockito.anyIterable());
+
         EventPublisher publisher = published::add;
         eventSerializer = new EventSerializer(JsonMapper.builder()
                 .build());
         inventoryService = new InventoryService(
-                stockRepository, processedRepository,
+                stockRepository, reservationRepository, processedRepository,
                 publisher, eventSerializer, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -140,5 +163,19 @@ class InventoryServiceTest {
 
         assertThat(stock.getQuantityAvailable()).isEqualTo(10);
         assertThat(stock.getQuantityReserved()).isZero();
+    }
+
+    @Test
+    @DisplayName("Annuler une commande rejetee ne libere pas le stock reserve par une autre commande")
+    void cancellationOfRejectedOrder_keepsOtherReservations() {
+        inventoryService.handleOrderCreated(orderCreated(3), CID);   // ord-1 reserve 3
+        inventoryService.handleOrderCreated(new OrderCreatedEvent(
+                "evt-3", "ord-2", "cust-42", List.of(line(999)), line(999).lineTotal(), NOW), CID);   // ord-2 rejetee
+
+        inventoryService.handleOrderCancelled(new OrderCancelledEvent(
+                "evt-4", "ord-2", List.of(line(999)), "Stock insuffisant", NOW));
+
+        assertThat(stock.getQuantityAvailable()).isEqualTo(7);
+        assertThat(stock.getQuantityReserved()).isEqualTo(3);
     }
 }

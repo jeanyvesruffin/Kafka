@@ -6,21 +6,18 @@ import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
 import fr.orderflow.inventory.service.InventoryService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class OrderEventListener {
 
     private final InventoryService inventoryService;
     private final EventSerializer eventSerializer;
-
-    public OrderEventListener(InventoryService inventoryService, EventSerializer eventSerializer) {
-        this.inventoryService = inventoryService;
-        this.eventSerializer = eventSerializer;
-    }
 
     @KafkaListener(topics = Topics.ORDERS_CREATED, groupId = "inventory-service")
     public void onOrderCreated(@Payload String payload,

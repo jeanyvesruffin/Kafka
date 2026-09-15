@@ -1,6 +1,7 @@
 package fr.orderflow.common.messaging;
 
 import fr.orderflow.common.event.OrderFlowEvent;
+import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.LinkedHashMap;
@@ -18,13 +19,10 @@ import java.util.Map;
  *
  * <p>Bean declare dans {@link fr.orderflow.common.config.MessagingConfig}.
  */
+@RequiredArgsConstructor
 public class EventSerializer {
 
     private final JsonMapper jsonMapper;
-
-    public EventSerializer(JsonMapper jsonMapper) {
-        this.jsonMapper = jsonMapper;
-    }
 
     public String toJson(OrderFlowEvent event) {
         return jsonMapper.writeValueAsString(event);

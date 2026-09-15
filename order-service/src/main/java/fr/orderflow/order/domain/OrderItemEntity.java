@@ -1,17 +1,26 @@
 package fr.orderflow.order.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "order_items")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderItemEntity {
 
     @Id
     @Column(name = "id", length = 64)
     private String id;
 
+    /**
+     * Reference inverse vers la commande : pas de getter, elle ne sert qu'au mapping JPA.
+     */
+    @Getter(AccessLevel.NONE)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_id", nullable = false)
     private OrderEntity order;
@@ -25,10 +34,6 @@ public class OrderItemEntity {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
-    protected OrderItemEntity() {
-        // requis par JPA
-    }
-
     public OrderItemEntity(String id, String productId, int quantity, BigDecimal unitPrice) {
         this.id = id;
         this.productId = productId;
@@ -38,18 +43,6 @@ public class OrderItemEntity {
 
     void attachTo(OrderEntity order) {
         this.order = order;
-    }
-
-    public String getProductId() {
-        return productId;
-    }
-
-    public int getQuantity() {
-        return quantity;
-    }
-
-    public BigDecimal getUnitPrice() {
-        return unitPrice;
     }
 
     public BigDecimal lineTotal() {
