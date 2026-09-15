@@ -34,13 +34,13 @@ class InventoryServiceTest {
     private InventoryService inventoryService;
     private EventSerializer eventSerializer;
 
-    private static OrderCreatedEvent orderCreated(String eventId, String productId, int quantity) {
-        OrderLine line = line(productId, quantity);
-        return new OrderCreatedEvent(eventId, "ord-1", "cust-118", List.of(line), line.lineTotal(), NOW);
+    private static OrderCreatedEvent orderCreated(int quantity) {
+        OrderLine line = line(quantity);
+        return new OrderCreatedEvent("evt-1", "ord-1", "cust-118", List.of(line), line.lineTotal(), NOW);
     }
 
-    private static OrderLine line(String productId, int quantity) {
-        return new OrderLine(productId, quantity, new BigDecimal("19.90"));
+    private static OrderLine line(int quantity) {
+        return new OrderLine("sku-001", quantity, new BigDecimal("19.90"));
     }
 
     @BeforeEach
@@ -76,7 +76,7 @@ class InventoryServiceTest {
     @Test
     @DisplayName("Stock suffisant : reservation effectuee et InventoryReserved publie")
     void enoughStock_reserves() {
-        inventoryService.handleOrderCreated(orderCreated("evt-1", "sku-001", 3), CID);
+        inventoryService.handleOrderCreated(orderCreated(3), CID);
 
         assertThat(stock.getQuantityAvailable()).isEqualTo(7);
         assertThat(stock.getQuantityReserved()).isEqualTo(3);
@@ -92,7 +92,7 @@ class InventoryServiceTest {
     @Test
     @DisplayName("Stock insuffisant : rien n'est reserve et InventoryRejected est publie")
     void notEnoughStock_rejects() {
-        inventoryService.handleOrderCreated(orderCreated("evt-1", "sku-001", 999), CID);
+        inventoryService.handleOrderCreated(orderCreated(999), CID);
 
         assertThat(stock.getQuantityAvailable()).isEqualTo(10);
         assertThat(stock.getQuantityReserved()).isZero();
@@ -108,7 +108,7 @@ class InventoryServiceTest {
     @Test
     @DisplayName("Le meme evenement redelivre ne reserve pas le stock deux fois (idempotence)")
     void redelivery_doesNotReserveTwice() {
-        var event = orderCreated("evt-1", "sku-001", 3);
+        var event = orderCreated(3);
 
         inventoryService.handleOrderCreated(event, CID);
         inventoryService.handleOrderCreated(event, CID);   // redelivery apres rebalance
@@ -122,11 +122,11 @@ class InventoryServiceTest {
     @Test
     @DisplayName("OrderCancelled libere le stock precedemment reserve (compensation)")
     void cancellation_releasesStock() {
-        inventoryService.handleOrderCreated(orderCreated("evt-1", "sku-001", 3), CID);
+        inventoryService.handleOrderCreated(orderCreated(3), CID);
         assertThat(stock.getQuantityAvailable()).isEqualTo(7);
 
         inventoryService.handleOrderCancelled(new OrderCancelledEvent(
-                "evt-2", "ord-1", List.of(line("sku-001", 3)), "Paiement refuse", NOW));
+                "evt-2", "ord-1", List.of(line(3)), "Paiement refuse", NOW));
 
         assertThat(stock.getQuantityAvailable()).isEqualTo(10);
         assertThat(stock.getQuantityReserved()).isZero();
@@ -136,7 +136,7 @@ class InventoryServiceTest {
     @DisplayName("La compensation est sure meme si aucune reservation n'avait eu lieu")
     void cancellationWithoutReservation_isSafe() {
         inventoryService.handleOrderCancelled(new OrderCancelledEvent(
-                "evt-2", "ord-1", List.of(line("sku-001", 3)), "Stock insuffisant", NOW));
+                "evt-2", "ord-1", List.of(line(3)), "Stock insuffisant", NOW));
 
         assertThat(stock.getQuantityAvailable()).isEqualTo(10);
         assertThat(stock.getQuantityReserved()).isZero();

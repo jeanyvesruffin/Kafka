@@ -159,7 +159,7 @@ public class InventoryService {
         processedEventRepository.save(new ProcessedEventEntity(eventId, eventType, now));
     }
 
-    private void publish(String topic, fr.orderflow.common.event.OrderFlowEvent event, String correlationId) {
+    private void publish(String topic, OrderFlowEvent event, String correlationId) {
         eventPublisher.publish(eventSerializer.envelope(topic, event, correlationId));
     }
 }

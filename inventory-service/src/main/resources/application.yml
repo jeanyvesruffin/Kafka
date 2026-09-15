@@ -16,6 +16,8 @@ spring:
   kafka:
     admin:
       fail-fast: true
+    consumer:
+      auto-offset-reset: earliest
 
   sql:
     init:
@@ -31,8 +33,6 @@ server:
 
 orderflow:
   messaging:
-    # 'logging' : pas de broker, les evenements sont traces dans la console.
-    # Passe a 'kafka' quand ton KafkaEventPublisher existe.
     publisher: kafka
 
 management:

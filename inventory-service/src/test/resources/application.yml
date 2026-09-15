@@ -12,3 +12,10 @@ spring:
   sql:
     init:
       mode: always
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+
+orderflow:
+  messaging:
+    publisher: kafka

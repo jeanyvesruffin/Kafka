@@ -3,11 +3,8 @@
 <details>
 <summary>Définitions & concepts</summary>
 
-Voici le contenu masqué par défaut.
-Tu peux y mettre du **texte**, des *listes* ou du `code`.
-
 * `Event`:
-    * Description d'une action (ex métier: passage d'une commande, d'un payement, via un site e-commerce)
+    * Description d'une action (ex métier: passage d'une commande, d'un payment, via un site e-commerce)
     * A diffuser à un ou plusieurs microservices
     * Stockés sous forme de messages
     * Stockés dans une couche logique nommée topics
@@ -47,7 +44,7 @@ _Exemple de cluster partitionné_
 * `Segment` (partition découpé)
     * au sein des partitions
     * regroupement de messages pour un stockage physique
-    * veleur par défaut = 1GB
+    * valeur par défaut = 1GB
 * `Réplication`
     * Les partitions sont dupliquées (haute disponibilité)
     * Sur un ou plusieurs autre serveurs (brokers)
@@ -276,6 +273,8 @@ subtilités.
 <details>
 <summary>Travaux Dirigés - Réalisation</summary>
 
+# [Phase 1 — Premier flux Order → Inventory](TODO-KAFKA.md#phase-1)
+
 * Ajouter les dépendances nécessaires pour implementer Kafka Spring `spring-kafka` dans `pom.xml` ainsi que l'ajout les
   paramètres dans `application.yml`
 
@@ -310,6 +309,13 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       ack-mode: record
+    admin:
+      fail-fast: true
+orderflow:
+  messaging:
+    publisher: kafka
+  outbox:
+    poll-interval-ms: 1000
 ```
 
 * Ajout des `Publisher`
@@ -321,10 +327,9 @@ spring:
     * implémente `EventPublisher`, qui est déja prévu pour surcharger une méthode retournant topic key headers
       payload, qui seront nécessaires au `Publisher` Kafka.
     * définir la variable de
-      type (`message à envoyé`).
-      [ProducerRecord](https://kafka.apache.org/43/javadoc/org/apache/kafka/clients/producer/ProducerRecord.html) qui
-      permet de créer des enregistrements.
-    * ajouter à la variable de type ProducerRecord (`message à envoyé`) la liste contenu du header, au besoin.
+      type [ProducerRecord](https://kafka.apache.org/43/javadoc/org/apache/kafka/clients/producer/ProducerRecord.html)
+      qui permet de créer des enregistrements.
+    * ajouter à la variable de type `ProducerRecord` la liste contenu du header, au besoin.
     * envoi le `message` dans un `topic`.
     * La valeur du paramètre `orderflow.messaging.publisher` doit être `kafka` (vs logging initialement).
     * Exemple de `Publisher` :
@@ -332,6 +337,7 @@ spring:
 ```java
 
 @Component
+@ConditionalOnProperty(name = "orderflow.messaging.publisher", havingValue = "kafka")
 public class KafkaEventPublisher implements EventPublisher {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
@@ -359,9 +365,11 @@ public class KafkaEventPublisher implements EventPublisher {
 ```
 
 * Ajout des `Listens` nécessaires pour la deserialisation et delegation à `KafkaListener`. _Chaque méthode (onReserved,
-  onReject) gère un événement spécifique d'un topic distinct._. Les méthodes doivent :
+  onReject) gère un événement spécifique d'un topic distinct._ Les méthodes doivent :
     * être un `@Component`. La classe doit être enregistrée comme un bean Spring pour que le conteneur puisse détecter
       automatiquement les méthodes annotées pour l'écoute.
+    * être un `@ConditionalOnProperty`. Permet de s'assurer de la presence et utilisation et la propriété :
+      `orderflow.messaging.publisher: kafka`
     * avoir des méthodes annotées `@KafkaListener` transforme une méthode en consommateur Kafka. Elle prend
       généralement en paramètre :
         * `topics` : Le ou les sujets Kafka écoutés.
@@ -373,8 +381,9 @@ public class KafkaEventPublisher implements EventPublisher {
       le `correlationId` pour le traçage distribué ou l'`ID` de l'événement).
     * La désérialisation du message : Convertit la chaîne brute (ou les octets) du payload en un objet typé Java (ex:
       `InventoryReservedEvent`) via un composant dédié (comme votre `EventSerializer`).
-    * La délégation au service métier (Service Layer) : Le listener ne doit pas contenir de logique métier. Son rôle se
-      limite à recevoir, décoder et transmettre. Il délègue immédiatement le traitement à un service (ex:
+    * La délégation au service métier (Service Layer) : Le listener ne doit pas contenir de logiques métiers. Son rôle
+      se
+      limite à recevoir, décoder et transmettre. Il délègue immédiatement le traitement à un service (ex :
       `OrderService`)
       en lui passant les données extraites. _L'injection des dépendances (OrderService, EventSerializer) se fait via le
       constructeur._
@@ -459,15 +468,88 @@ public class KafkaTopicsOrderConfig {
 ```
 
 > Pourquoi 3 partitions plutôt que 10
-> Parallélisme : dans un consumer group, une partition n'est lue que par un seul consumer. Le nombre de partitions fixe
+> Parallélisme : dans un `consumer group`, une partition n'est lue que par un seul `consumer`. Le nombre de partitions
+> fixe
 > donc le nombre maximum d'instances d'un service qui peuvent travailler en parallèle. Pour le TD, 3 suffit, et c'est la
-> valeur par défaut de ton broker (num.partitions=3).
-> Ordre : la clé du message est l'`event.orderId`. Tous les événements d'une même commande 
+> valeur par défaut de ton `broker` (`num.partitions=3`).
+> Ordre : la clé du message est l'`event.orderId`. Tous les événements d'une même commande
 > vont
 > donc dans la même partition, dans l'ordre.
-> **⚠️Attention ⚠️** : on peut augmenter le nombre de partitions plus tard, mais jamais le diminuer. Et l'augmenter 
+> **⚠️Attention ⚠️** : on peut augmenter le nombre de partitions plus tard, mais jamais le diminuer. Et l'augmenter
 > change la
 > partition associée à chaque clé.
+
+## Tests unitaires
+
+* Configurer vos fichiers test/../application.yml :
+
+```yaml
+# inventory-service
+spring:
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+  orderflow:
+    messaging:
+      publisher: kafka
+```
+
+```yaml
+# order-service
+spring:
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+    orderflow:
+      messaging:
+        publisher: kafka
+      outbox:
+        poll-interval-ms: 3600000
+```
+
+* `consumer.auto-offset-reset: earliest` : Permet aux listeners de ne pas rater les premiers messages. Si ce paramètre
+  n'est pas présent, alors, le listener mettrait plusieurs secondes à rejoindre son groupe. Le message partirait alors
+  avant, et
+  comme aucun `auto-offset-reset` n'est défini, Kafka applique `latest` : le listener démarrait après le message et ne
+  le
+  verrait jamais.
+* `orderflow.messaging.publisher: kafka` : Indique que l'application doit utiliser Apache Kafka comme infrastructure de
+  messagerie pour l'envoi de ces messages (plutot que logging)
+* `consumer.outbox.poll-interval-ms: 3600000` : il reste désactivé en test, et le test
+  appelle `outboxRelay.publishPending()` quand il en a besoin.
+
+![OutboxRelay](.\Docs\OutboxRelay.png)
+
+* Fonctionnement de `OutboxRelay` :
+    * **Étape 1** : l'événement n'est plus envoyé, il est écrit en base dans la même transaction que la commande. Soit
+      les deux lignes existent, soit aucune. On ne peut plus avoir l'une sans l'autre.
+    * **Étape 2** : le relais pousse ensuite ces lignes vers Kafka. Si Kafka est arrêté, les lignes attendent et
+      partiront au cycle suivant, même après un redémarrage du service. Arrêt au premier échec (break) : si l'envoi de
+      l'événement n°3 échoue, le 4 n'est pas envoyé. On préserve ainsi l'ordre des événements d'une même commande, par
+      exemple OrderCreated avant OrderCancelled. Lots de 100 (BATCH_SIZE): après une longue panne du broker, le
+      relais ne charge pas des milliers de lignes d'un coup.
+      La garantie obtenue: at-least-once. Si le service plante entre l'envoi Kafka et le markPublished, la ligne est
+      encore published = false et l'événement repart au redémarrage. On a donc au moins une livraison, parfois deux.
+      C'est pour ça que les consommateurs doivent être idempotents : processed_events côté Inventory, transitionTo ()
+      côté Order. Tes tests « message reçu deux fois » vérifient exactement ça.
+* Créer vos tests unitaires, doit être :
+    * `@SpringBootTest(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")` : Il contient
+      l'adresse (hôte et port, ex: localhost:12345) du ou des serveurs Kafka (brokers) fictifs démarrés dynamiquement en
+      mémoire pour les besoins des tests d'intégration.
+    * `@EmbeddedKafka (partitions = 3, topics = {Topics.ORDERS_CREATED,
+      Topics.ORDERS_CANCELLED,Topics.INVENTORY_RESERVED, Topics.INVENTORY_REJECTED})` : indique que chacun des 
+      topics déclarés sera créé avec 3 partitions. Indique au broker intégré quels topics il doit créer 
+      automatiquement dès son démarrage.
+    * `@DirtiesContext` : garantit qu'on repart d'une feuille blanche (nouveau conteneur Spring, nouveau broker Kafka arrêté et relancé).
+  
+
+## DOD Phase 1
+
+> Un POST /api/orders fait bouger le stock dans GET /api/stock, et que tu vois les messages passer dans AKHQ
+
+![Topic: orders.created](\Docs\PHASE_1_DOD_orders_created.png)
+![Topic: inventory.reserved](\Docs\PHASE_1_DOD_inventory_reserved.png)
+
 
 
 

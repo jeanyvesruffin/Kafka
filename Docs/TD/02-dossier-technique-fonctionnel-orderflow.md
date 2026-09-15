@@ -629,13 +629,13 @@ web H2 (`/h2-console`) suffit pour inspecter les tables.
 
 ### 12.8 Checklist de validation du poste (à faire en phase 0)
 
-- [ ] `java -version` retourne 21.0.12.1, sans avoir lancé d'installeur
-- [ ] `mvnw -v` fonctionne (le wrapper a téléchargé Maven tout seul)
-- [ ] `mvnw dependency:resolve` passe (proxy correctement configuré si nécessaire)
-- [ ] Le broker Kafka démarre et `bin/kafka-topics.sh --list --bootstrap-server localhost:9092` répond
-- [ ] AKHQ s'ouvre sur `http://localhost:8090` et voit le cluster
-- [ ] Un test `@EmbeddedKafka` minimal passe en vert
-- [ ] Aucune fenêtre UAC / `sudo` n'a été nécessaire à aucune étape
+- [x] `java -version` retourne 21.0.12.1, sans avoir lancé d'installeur
+- [x] `mvnw -v` fonctionne (le wrapper a téléchargé Maven tout seul)
+- [x] `mvnw dependency:resolve` passe (proxy correctement configuré si nécessaire)
+- [x] Le broker Kafka démarre et `bin/kafka-topics.sh --list --bootstrap-server localhost:9092` répond
+- [x] AKHQ s'ouvre sur `http://localhost:8090` et voit le cluster
+- [x] Un test `@EmbeddedKafka` minimal passe en vert
+- [x] Aucune fenêtre UAC / `sudo` n'a été nécessaire à aucune étape
 
 ---
 

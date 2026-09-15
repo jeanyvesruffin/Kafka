@@ -8,8 +8,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
 
 orderflow:
+  messaging:
+    publisher: kafka
   outbox:
-    # Relais desactive en test : les tests inspectent la table outbox directement.
     poll-interval-ms: 3600000

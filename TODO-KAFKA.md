@@ -38,15 +38,24 @@ ce bean pour brancher Kafka, quelque chose fuit.
 
 ## Étapes
 
+<a id="phase-1"></a>
+
 ### Phase 1 — Premier flux Order → Inventory
 
 - [x] Décommenter `spring-boot-starter-kafka` dans `order-service/pom.xml` et `inventory-service/pom.xml`
 - [x] Décommenter le bloc `spring.kafka` dans `order-service/src/main/resources/application.yml`
-- [x] Écrire `fr.orderflow.order.messaging.KafkaEventPublisher implements EventPublisher`
+- [x] Écrire `fr.orderflow.order.messaging.KafkaEventOrderPublisher` et `fr.orderflow.inventory.messaging.
+KafkaEventInventoryPublisher` qui doit
+  implementer
+  `EventPublisher`
 - [x] Basculer `orderflow.messaging.publisher` sur `kafka` dans les `application.yml` concernés
-- [x] Déclarer les topics via des beans `NewTopic` (⚠️ `replicationFactor = 1` en local mono-nœud)
-- [x] Écrire `fr.orderflow.inventory.messaging.OrderEventListener` → appelle `inventoryService.handleOrderCreated(...)`
-- [x] Écrire `KafkaEventOrderPublisher` côté inventory également
+- [x] Déclarer et configurer les topics via des beans `NewTopic` (⚠️ `replicationFactor = 1` en local mono-nœud)
+  dans les fichiers `fr.orderflow.inventory.messaging.KafkaTopicsInventoryConfig` et `fr.orderflow.order.messaging.
+  KafkaTopicsOrderConfig`
+- [x] Écrire `fr.orderflow.inventory.messaging.OrderEventListener` → appelle `inventoryService.handleOrderCreated(...
+)` et `inventoryService.handleOrderCancelled(...)`.
+- [x] Écrire `fr.orderflow.order.messaging.InventoryEventListener` → appelle `orderService.onInventoryReserved(...)` et
+  `orderService.onInventoryRejected(...)`.
 
 **Validé quand** : un `POST /api/orders` fait bouger le stock dans `GET /api/stock`,
 et que tu vois les messages passer dans AKHQ.
