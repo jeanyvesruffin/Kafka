@@ -45,7 +45,8 @@
   },
   "files.watcherExclude": {
     "**/target/**": true
-  }
+  },
+  "java.compile.nullAnalysis.mode": "automatic"
 
   // --- .idea/dataSources.xml : bases H2 orders / inventory / payments --------
   // Voir la tache "H2 : ouvrir la console" (tasks.json).
