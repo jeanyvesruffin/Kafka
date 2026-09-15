@@ -547,10 +547,15 @@ spring:
 
 > Un POST /api/orders fait bouger le stock dans GET /api/stock, et que tu vois les messages passer dans AKHQ
 
-![Topic: orders.created](\Docs\PHASE_1_DOD_orders_created.png)
-![Topic: inventory.reserved](\Docs\PHASE_1_DOD_inventory_reserved.png)
+![Topic: orders.created](Docs/PHASE_1_DOD_orders_created.png)
+![Topic: inventory.reserved](Docs/PHASE_1_DOD_inventory_reserved.png)
 
+# [Phase 2 — Payment + saga complète](TODO-KAFKA.md#phase-2)
 
+## DOD Phase 2
+
+![Topic: orders.created](Docs/PHASE_1_DOD_orders_created.png)
+![Topic: inventory.reserved](Docs/PHASE_1_DOD_inventory_reserved.png)
 
 
 </details>

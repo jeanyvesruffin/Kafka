@@ -38,6 +38,22 @@ ce bean pour brancher Kafka, quelque chose fuit.
 
 ## Étapes
 
+### Démarrage
+
+* Les différents modules se démarrent à l'aide des commandes ci-dessous :
+```shell
+mvn clean install #A la racine du module desire
+mvn spring-boot: run
+```
+* Le moteur Kafka s'exécute à l'aide de la commande ci-dessous :
+```shell
+bin\windows\kafka-server-start.bat config\server.properties #A la racine de votre installation Kafka
+```
+* Démarrage AKHQ
+```shell
+java -Dmicronaut.config.files=application.yml -jar akhq-0.28.0-all.jar #A la racine de votre installation akhq
+```
+
 <a id="phase-1"></a>
 
 ### Phase 1 — Premier flux Order → Inventory
@@ -60,11 +76,13 @@ KafkaEventInventoryPublisher` qui doit
 **Validé quand** : un `POST /api/orders` fait bouger le stock dans `GET /api/stock`,
 et que tu vois les messages passer dans AKHQ.
 
+<a id="phase-2"></a>
+
 ### Phase 2 — Payment + saga complète
 
-- [ ] `fr.orderflow.payment.messaging.InventoryEventListener` → `paymentService.handleInventoryReserved(...)`
-- [ ] `fr.orderflow.order.messaging.*Listener` pour les 4 topics consommés par order-service
-- [ ] `fr.orderflow.notification.messaging.*Listener` pour les 2 topics terminaux
+- [x] `fr.orderflow.payment.messaging.InventoryEventListener` → `paymentService.handleInventoryReserved(...)`
+- [x] `fr.orderflow.order.messaging.*Listener` pour les 4 topics consommés par order-service
+- [x] `fr.orderflow.notification.messaging.*Listener` pour les 2 topics terminaux
 
 **Validé quand** : commander `sku-001 x2` aboutit à `CONFIRMED`, et commander
 `sku-005 x1` (1250,00 € > plafond) aboutit à `CANCELLED` **avec le stock libéré**.
