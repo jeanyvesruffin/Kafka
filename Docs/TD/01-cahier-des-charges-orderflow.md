@@ -1,8 +1,9 @@
 # Cahier des charges — OrderFlow (v2)
 
 **Plateforme événementielle de gestion de commandes e-commerce**
-**Stack imposée : Java 21 · Spring Boot 4.1 · Spring Kafka 4.1 · Apache Kafka 4.3 (KRaft)**
-**Contrainte majeure : poste de développement SANS droits administrateur — aucun Docker, aucun installeur**
+**Stack imposée : Java 25 · Spring Boot 4.1 · Spring Kafka 4.1 · Apache Kafka 4.3 (KRaft)**
+**Contrainte de référence : poste de développement SANS droits administrateur — aucun Docker, aucun installeur**
+**Alternative : poste AVEC droits administrateur — infrastructure et services sous Docker Compose (§6.2)**
 
 ---
 
@@ -22,8 +23,8 @@ remplaçant des appels synchrones inter-services par une architecture pilotée p
   Topic**, **Saga chorégraphiée**
 - Faire évoluer un format d'événement JSON vers **Avro + registre de schémas**
 - Mettre en place une **observabilité** de bout en bout (métriques, logs corrélés, tracing distribué)
-- Écrire des **tests d'intégration** réalistes **sans Docker** (`@EmbeddedKafka` + H2)
-- Exploiter **Java 21** (records, sealed interfaces, pattern matching, virtual threads) dans un contexte Kafka
+- Écrire des **tests d'intégration** réalistes **sans Docker** (`@EmbeddedKafka` + H2), identiques dans les deux modes de démarrage
+- Exploiter **Java 25** (records, sealed interfaces, pattern matching, virtual threads) dans un contexte Kafka
 - *(Bonus)* Introduire **Kafka Streams** pour un agrégat temps réel
 
 ---
@@ -60,7 +61,8 @@ des autres (**saga chorégraphiée**).
 - Logistique de livraison réelle
 - Authentification/autorisation complète (un `customerId` dans le payload suffit)
 - Interface graphique riche (fichiers `.http` ou Postman suffisent)
-- Déploiement production, conteneurisation, Kubernetes — **hors périmètre par construction** (voir §6)
+- Déploiement production, Kubernetes — **hors périmètre** ; la conteneurisation se limite à l'environnement local
+  Docker Compose du mode avec droits administrateur (voir §6.2)
 
 ---
 
@@ -94,6 +96,7 @@ des autres (**saga chorégraphiée**).
 | NF-07 | **Évolutivité** — ajout d'un consommateur sans modifier les producteurs existants                                                                                                |
 | NF-08 | **Documentation** — chaque service documente les topics qu'il consomme/produit                                                                                                   |
 | NF-09 | **Portabilité poste bridé** — toute l'infrastructure démarre depuis le répertoire utilisateur, sans élévation de privilèges, sans service Windows, sans port privilégié (< 1024) |
+| NF-10 | **Démarrage conteneurisé (poste avec droits admin)** — `docker compose up -d --build` démarre Kafka, AKHQ et les 4 services, sans JDK ni Maven requis sur le poste pour l'exécution |
 
 ---
 
@@ -101,7 +104,7 @@ des autres (**saga chorégraphiée**).
 
 ### 6.1 Contrainte « pas de droits administrateur »
 
-Cette contrainte est **structurante** et non négociable. Elle implique :
+C'est la contrainte de référence : sur un poste bridé, elle est **structurante** et non négociable. Elle implique :
 
 | Interdit                                    | Retenu à la place                                                               |
 |---------------------------------------------|---------------------------------------------------------------------------------|
@@ -113,29 +116,44 @@ Cette contrainte est **structurante** et non négociable. Elle implique :
 | Modification du `PATH` système              | Variables d'environnement **utilisateur** (`setx`) ou script de démarrage local |
 | Ports < 1024                                | Tous les ports en 8080–9099                                                     |
 
-### 6.2 Versions imposées (vérifiées au 7 septembre 2026)
+### 6.2 Mode avec droits administrateur (Docker)
 
-| Composant                         | Version                                               | Mode d'obtention sans admin                                                  |
+Sur un poste où l'on dispose des droits administrateur, l'infrastructure peut être conteneurisée. Le code, les ports
+et les tests restent strictement identiques au mode sans droits administrateur.
+
+| Composant     | Mode avec droits administrateur                                                                   |
+|---------------|---------------------------------------------------------------------------------------------------|
+| Kafka         | conteneur `apache/kafka:4.3.1`, KRaft mono-nœud, logs dans un volume Docker                       |
+| AKHQ          | conteneur `tchiotludo/akhq:0.28.0`, port 8090                                                     |
+| Services      | images construites par la `Dockerfile` racine (build Maven dans un conteneur, exécution JRE 25)   |
+| Bases H2      | un volume Docker par service — toujours un fichier H2 distinct par service                        |
+| Orchestration | `docker-compose.yml` à la racine du dépôt                                                         |
+| Tests         | inchangés : `@EmbeddedKafka` + H2, **pas** Testcontainers, pour que la suite passe dans les deux modes |
+
+### 6.3 Versions imposées (vérifiées au 7 septembre 2026)
+
+| Composant                         | Version                                               | Mode d'obtention (sans admin — avec admin)                                                  |
 |-----------------------------------|-------------------------------------------------------|------------------------------------------------------------------------------|
-| **JDK**                           | Eclipse Temurin **21.0.12.1+1** (LTS)                 | archive `.zip` (Windows) / `.tar.gz` (Linux, macOS) — **jamais** le `.msi`   |
-| **Apache Kafka**                  | **4.3.1** (build Scala 2.13)                          | `kafka_2.13-4.3.1.tgz`, décompression simple                                 |
+| **JDK**                           | Eclipse Temurin **25.0.4.1+1** (LTS), requis par AKHQ 0.28.0                 | archive `.zip` (Windows) / `.tar.gz` (Linux, macOS) — **jamais** le `.msi` — ou image `eclipse-temurin:25-jre`   |
+| **Apache Kafka**                  | **4.3.1** (build Scala 2.13)                          | `kafka_2.13-4.3.1.tgz`, décompression simple — ou image `apache/kafka:4.3.1`                                 |
 | **Spring Boot**                   | **4.1.1**                                             | résolu par Maven, rien à installer                                           |
 | **Spring Framework**              | 7.0.9 (embarqué par Boot 4.1.1)                       | via BOM                                                                      |
 | **Spring for Apache Kafka**       | **4.1.1** (embarqué par Boot 4.1.1)                   | via BOM                                                                      |
 | **Maven**                         | **3.9.16** — ou, mieux, le **Maven Wrapper** (`mvnw`) | wrapper : rien à installer du tout                                           |
 | **H2 Database**                   | 2.4.240 (version gérée par le BOM Boot)               | dépendance Maven                                                             |
-| **AKHQ** (UI Kafka)               | **0.28.0**                                            | JAR exécutable `akhq-0.28.0-all.jar`                                         |
+| **AKHQ** (UI Kafka)               | **0.28.0**                                            | JAR exécutable `akhq-0.28.0-all.jar` — ou image `tchiotludo/akhq:0.28.0`                                         |
 | **Apicurio Registry** *(phase 7)* | 3.3.0                                                 | JAR Quarkus `-runner.jar` (voir plan B au §13, phase 7 du dossier technique) |
+| **Docker Desktop / Engine + Compose** *(mode admin uniquement)* | version courante (Compose v2)  | installeur — droits administrateur requis                                    |
 
 Notes de compatibilité :
 
-- Kafka 4.x fonctionne **uniquement en mode KRaft** (Zookeeper supprimé) et exige **Java 17+** — Java 21 convient.
-- Spring Boot 4.1 exige Java 17 minimum et supporte jusqu'à Java 26 ; Java 21 LTS reste la cible du projet. Java 25 LTS
-  serait une alternative valable pour pousser plus loin.
+- Kafka 4.x fonctionne **uniquement en mode KRaft** (Zookeeper supprimé) et exige **Java 17+** — Java 25 convient.
+- Spring Boot 4.1 exige Java 17 minimum et supporte jusqu'à Java 26 ; **Java 25 LTS est la cible du projet**, imposée
+  par AKHQ 0.28.0 (`<java.version>25</java.version>` dans le `pom.xml`).
 - **Piège Spring Boot 4** : le starter Kafka doit être déclaré **explicitement** (`spring-boot-starter-kafka`) ; il
   n'est plus tiré implicitement comme en Boot 3.
 
-### 6.3 Autres contraintes
+### 6.4 Autres contraintes
 
 - Un microservice = une base de données dédiée (un **fichier H2** distinct par service) — pas de base partagée
 - Build **Maven** multi-modules (recommandé) ou Gradle
@@ -146,8 +164,8 @@ Notes de compatibilité :
 ## 7. Livrables attendus
 
 1. Dépôt de code source (mono-repo multi-modules recommandé)
-2. **Scripts de démarrage locaux** (`start-kafka.cmd` / `start-kafka.sh`, `start-akhq.cmd` / `.sh`) remplaçant le
-   `docker-compose.yml`
+2. **Scripts de démarrage locaux** (`start-kafka.cmd` / `start-kafka.sh`, `start-akhq.cmd` / `.sh`) pour le mode sans droits
+   administrateur, et `docker-compose.yml` + `Dockerfile` pour le mode avec droits administrateur
 3. Documentation technique par service (topics consommés/produits, schémas d'événements, endpoints)
 4. Suite de tests automatisés (unitaires + intégration `@EmbeddedKafka`), **exécutable sur un poste vierge sans droits
    admin**
@@ -164,6 +182,8 @@ Notes de compatibilité :
 - [ ] Un redémarrage de consumer ne duplique pas les effets métier (idempotence vérifiée par test)
 - [ ] `mvnw verify` passe de façon reproductible **sans qu'aucun service externe ne tourne**
 - [ ] L'ensemble de la stack locale démarre depuis le répertoire utilisateur, sans élévation de privilèges
+- [ ] Sur un poste avec droits administrateur, `docker compose up -d --build` démarre la stack complète et le parcours
+  nominal aboutit à `CONFIRMED`
 
 ---
 
@@ -171,7 +191,7 @@ Notes de compatibilité :
 
 | Phase | Thème                                                    | Effort |
 |-------|----------------------------------------------------------|--------|
-| 0     | Socle local sans admin (JDK portable, Kafka KRaft, AKHQ) | 0,5 j  |
+| 0     | Socle local : natif sans admin, ou Docker Compose avec admin | 0,5 j  |
 | 1     | Premier flux Order → Inventory                           | 1 j    |
 | 2     | Ajout Payment + saga chorégraphiée                       | 1 j    |
 | 3     | Idempotence + Outbox transactionnel                      | 1 j    |

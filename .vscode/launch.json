@@ -1,7 +1,8 @@
 // Equivalent des configurations de lancement "Spring Boot" d'IntelliJ :
 // une par service, plus un compound pour tout demarrer d'un coup.
-// Le broker Kafka doit tourner avant (spring.kafka.admin.fail-fast: true),
-// voir la tache "Kafka : demarrer le broker".
+// Le broker Kafka doit tourner avant (spring.kafka.admin.fail-fast: true) :
+// tache "Kafka : demarrer le broker" (sans droits admin)
+// ou "Docker : Kafka + AKHQ seuls" (avec droits admin).
 {
   "version": "0.2.0",
   "configurations": [

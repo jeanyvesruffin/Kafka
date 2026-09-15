@@ -1,11 +1,11 @@
 # Dossier technique et fonctionnel — OrderFlow (v2)
 
-**Java 21 · Spring Boot 4.1.1 · Spring Kafka 4.1.1 · Apache Kafka 4.3.1 (KRaft) · H2 embarqué**
-**Exécution intégrale sur un poste sans droits administrateur**
+**Java 25 · Spring Boot 4.1.1 · Spring Kafka 4.1.1 · Apache Kafka 4.3.1 (KRaft) · H2 embarqué**
+**Deux modes d'exécution : poste sans droits administrateur (natif) ou avec droits administrateur (Docker Compose)**
 
 *Document complémentaire au cahier des charges. Il détaille la conception fonctionnelle (acteurs, cas d'usage,
-événements), la conception technique (architecture, patterns, tests) et les procédures d'installation locale sans
-élévation de privilèges.*
+événements), la conception technique (architecture, patterns, tests) et les procédures d'installation locale, sans
+élévation de privilèges ou avec Docker Compose.*
 
 ---
 
@@ -16,7 +16,7 @@ Ce dossier traduit les exigences du cahier des charges en une conception exploit
 comment"** (l'implémentation reste l'exercice) : c'est un support d'auto-formation, pas un corrigé.
 
 Le §12 est le plus important en pratique : il garantit que **rien dans ce projet ne nécessite de droits
-administrateur**.
+administrateur**, tout en proposant un démarrage Docker Compose quand on dispose de ces droits.
 
 ---
 
@@ -176,6 +176,7 @@ service métier, et ne réagit qu'aux événements Kafka (sauf l'API REST d'entr
 |-----------|---------------------------------------------------------------------------------|
 | 9092      | Kafka broker (listener PLAINTEXT)                                               |
 | 9093      | Kafka controller (KRaft, interne)                                               |
+| 29092     | Kafka, listener interne au réseau Docker (`kafka:29092`, mode avec droits admin)                |
 | 8081–8085 | Services Spring Boot                                                            |
 | 8090      | AKHQ                                                                            |
 | 8091      | Apicurio Registry *(phase 7, optionnel)*                                        |
@@ -225,6 +226,10 @@ spring:
 Postgres, le SQL migrera presque sans retouche. `AUTO_SERVER=TRUE` permet d'ouvrir la base depuis un autre process
 (client SQL) pendant que le service tourne.
 
+En mode Docker, `docker-compose.yml` surcharge `spring.datasource.url` par variable d'environnement : chaque service
+écrit dans `/data/<base>` (`jdbc:h2:file:/data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL`), sur un volume Docker dédié
+(`orders-data`, `inventory-data`, `payments-data`).
+
 ---
 
 ## 6. Patterns et bonnes pratiques Kafka à implémenter
@@ -271,7 +276,7 @@ crashe entre les deux).
 
 ---
 
-## 7. Java 21 dans OrderFlow
+## 7. Java 25 dans OrderFlow
 
 | Fonctionnalité                | Usage suggéré                                                                                                                                                                                                                                          |
 |-------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -320,7 +325,8 @@ crashe entre les deux).
 
 ## 10. Stratégie de test — sans Docker
 
-C'est le point où la contrainte « pas d'admin » change le plus la conception par rapport à un projet classique.
+C'est le point où la contrainte « pas d'admin » change le plus la conception par rapport à un projet classique. La stratégie reste la même en mode Docker : on garde
+`@EmbeddedKafka` plutôt que Testcontainers, pour que `mvn verify` passe à l'identique sur un poste bridé.
 
 | Niveau            | Outils                                     | Portée                                                |
 |-------------------|--------------------------------------------|-------------------------------------------------------|
@@ -379,7 +385,68 @@ couvert.
 
 ---
 
-## 12. Installation locale — poste sans droits administrateur
+## 12. Installation locale
+
+Deux procédures pour le même code et les mêmes ports (9092, 8081–8084, 8090) — ne pas les faire tourner en même
+temps :
+
+- **Avec droits administrateur** : Docker Compose démarre Kafka, AKHQ et les services.
+- **Sans droits administrateur** : tout est décompressé et lancé depuis le répertoire utilisateur (§12.1 à §12.8).
+
+<details>
+<summary>Démarrage avec droits administrateur (Docker)</summary>
+
+#### Fichiers fournis
+
+| Fichier              | Rôle                                                                                                          |
+|----------------------|---------------------------------------------------------------------------------------------------------------|
+| `docker-compose.yml` | Kafka 4.3.1 (KRaft), AKHQ 0.28.0, les 4 services et leurs volumes                                             |
+| `Dockerfile`         | image d'un service : build Maven (`maven:3.9-eclipse-temurin-25`) puis JRE 25 (`eclipse-temurin:25-jre`), utilisateur non root |
+| `.dockerignore`      | limite le contexte de build aux `pom.xml` et aux sources                                                      |
+
+#### Réseau Kafka
+
+Le broker expose deux listeners, pour que les conteneurs et le poste le joignent chacun à la bonne adresse :
+
+| Listener     | Adresse annoncée | Utilisé par                                                  |
+|--------------|------------------|--------------------------------------------------------------|
+| `INTERNAL`   | `kafka:29092`    | services et AKHQ, dans le réseau Docker                      |
+| `EXTERNAL`   | `localhost:9092` | le poste : IDE, `mvn spring-boot:run`, outils en ligne de commande |
+| `CONTROLLER` | `kafka:9093`     | quorum KRaft (interne)                                       |
+
+Réglages mono-nœud identiques au §12.4 : `num.partitions=3`, facteurs de réplication et `min.isr` à 1.
+
+Les `application.yml` ne changent pas : `docker-compose.yml` surcharge par variables d'environnement
+`spring.kafka.bootstrap-servers` (`kafka:29092`) et `spring.datasource.url` (`jdbc:h2:file:/data/<base>`), et autorise
+la console H2 depuis l'hôte (`spring.h2.console.settings.web-allow-others`).
+
+#### Démarrer
+
+```bash
+docker compose up -d --build                 # tout : Kafka, AKHQ et les 4 services
+docker compose up -d kafka akhq              # infra seule, services lancés depuis l'IDE
+docker compose ps                            # état et healthchecks
+docker compose logs -f order-service         # logs d'un service
+```
+
+#### Arrêter, réinitialiser
+
+```bash
+docker compose down      # garde les volumes (données Kafka et H2)
+docker compose down -v   # efface Kafka et les bases H2
+```
+
+#### Checklist de validation (mode Docker)
+
+- [ ] `docker compose ps` affiche `kafka` en `healthy` et les 4 services démarrés
+- [ ] AKHQ s'ouvre sur `http://localhost:8090` et voit le cluster `orderflow-docker`
+- [ ] `POST /api/orders` avec `sku-001 x2` aboutit à `CONFIRMED`
+- [ ] Les topics `orders.*`, `inventory.*` et `payments.*` apparaissent dans AKHQ
+
+</details>
+
+<details>
+<summary>Démarrage sans droits administrateur</summary>
 
 ### 12.1 Arborescence cible
 
@@ -387,7 +454,7 @@ Tout vit dans le répertoire utilisateur. Aucun écrit hors de celui-ci.
 
 ```
 %USERPROFILE%\dev\              (Windows)   /  ~/dev/   (Linux, macOS)
-├── jdk-21.0.12.1+1\
+├── jdk-25.0.4.1+1\
 ├── kafka_2.13-4.3.1\
 ├── apache-maven-3.9.16\        (optionnel si tu utilises mvnw)
 ├── akhq\
@@ -587,7 +654,7 @@ web H2 (`/h2-console`) suffit pour inspecter les tables.
 </parent>
 
 <properties>
-  <java.version>21</java.version>
+  <java.version>25</java.version>
 </properties>
 
 <dependencies>
@@ -629,7 +696,7 @@ web H2 (`/h2-console`) suffit pour inspecter les tables.
 
 ### 12.8 Checklist de validation du poste (à faire en phase 0)
 
-- [x] `java -version` retourne 21.0.12.1, sans avoir lancé d'installeur
+- [x] `java -version` retourne 25.0.4.1, sans avoir lancé d'installeur
 - [x] `mvnw -v` fonctionne (le wrapper a téléchargé Maven tout seul)
 - [x] `mvnw dependency:resolve` passe (proxy correctement configuré si nécessaire)
 - [x] Le broker Kafka démarre et `bin/kafka-topics.sh --list --bootstrap-server localhost:9092` répond
@@ -637,15 +704,18 @@ web H2 (`/h2-console`) suffit pour inspecter les tables.
 - [x] Un test `@EmbeddedKafka` minimal passe en vert
 - [x] Aucune fenêtre UAC / `sudo` n'a été nécessaire à aucune étape
 
+</details>
+
 ---
 
 ## 13. Feuille de route technique détaillée
 
-### Phase 0 — Socle local sans admin
+### Phase 0 — Socle local
 
-- **Objectif** : JDK portable, Kafka 4.3.1 KRaft, AKHQ opérationnels ; un producer/consumer « hello world »
+- **Objectif** : JDK 25, Kafka 4.3.1 KRaft, AKHQ opérationnels — en natif sans admin (§12.1 à §12.8) ou via Docker
+  Compose avec admin (§12) ; un producer/consumer « hello world »
 - **Compétences** : configuration Spring Kafka 4.x, sérialisation JSON, formatage KRaft
-- **Validation** : la checklist §12.8 est intégralement cochée, et un message publié apparaît dans AKHQ
+- **Validation** : la checklist du mode choisi (§12.8, ou celle du mode Docker au §12) est intégralement cochée, et un message publié apparaît dans AKHQ
 
 ### Phase 1 — Premier flux Order → Inventory
 
@@ -728,7 +798,7 @@ web H2 (`/h2-console`) suffit pour inspecter les tables.
 
 | Composant                       | Version                   |
 |---------------------------------|---------------------------|
-| Eclipse Temurin JDK             | 21.0.12.1+1 (LTS)         |
+| Eclipse Temurin JDK             | 25.0.4.1+1 (LTS)         |
 | Apache Kafka                    | 4.3.1 (Scala 2.13)        |
 | Spring Boot                     | 4.1.1                     |
 | Spring Framework                | 7.0.9                     |
@@ -737,6 +807,9 @@ web H2 (`/h2-console`) suffit pour inspecter les tables.
 | H2 Database                     | 2.4.240                   |
 | AKHQ                            | 0.28.0                    |
 | Apicurio Registry *(optionnel)* | 3.3.0                     |
+| Image Kafka *(mode Docker)*     | `apache/kafka:4.3.1`      |
+| Image AKHQ *(mode Docker)*      | `tchiotludo/akhq:0.28.0`  |
+| Images build / exécution *(mode Docker)* | `maven:3.9-eclipse-temurin-25` / `eclipse-temurin:25-jre` |
 
 Ces versions bougent vite (Kafka vise trois releases par an, Spring Boot deux). Revérifie-les au démarrage du projet ;
 les procédures du §12 restent valables quelle que soit la version mineure.
