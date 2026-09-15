@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    // Java + Maven + debug + tests JUnit (equivalent du coeur d'IDEA)
+    "vscjava.vscode-java-pack",
+    // Spring Boot : completion application.yml, Boot Dashboard
+    "vmware.vscode-boot-dev-pack",
+    // pom.xml
+    "redhat.vscode-xml",
+    // Execute http/orders.http, meme format que le client HTTP d'IDEA
+    "humao.rest-client"
+  ],
+  "unwantedRecommendations": [
+    // Second serveur de langage Java, en conflit avec redhat.java
+    "oracle.oracle-java"
+  ]
+}

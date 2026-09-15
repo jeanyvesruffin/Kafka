@@ -1,0 +1,107 @@
+// Equivalent de la fenetre Maven d'IDEA, plus le demarrage du broker Kafka
+// et l'acces aux bases H2 declarees dans .idea/dataSources.xml.
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Maven : clean verify",
+      "detail": "Compile et teste tous les modules (Ctrl+Shift+B)",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["clean", "verify"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": {
+        "owner": "maven",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\[(ERROR|WARNING)\\] (.+\\.java):\\[(\\d+),(\\d+)\\] (.*)$",
+          "severity": 1,
+          "file": 2,
+          "line": 3,
+          "column": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "Maven : test",
+      "detail": "Lance les tests de tous les modules",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["test"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": {
+        "owner": "maven",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^\\[(ERROR|WARNING)\\] (.+\\.java):\\[(\\d+),(\\d+)\\] (.*)$",
+          "severity": 1,
+          "file": 2,
+          "line": 3,
+          "column": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "Maven : install (sans tests)",
+      "detail": "Installe orderflow-common dans ~/.m2, requis par 'mvn -pl <service> spring-boot:run'",
+      "type": "shell",
+      "command": "mvn",
+      "args": ["install", "-DskipTests"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Kafka : demarrer le broker",
+      "detail": "scripts/start-kafka.cmd (Windows) ou start-kafka.sh ; KAFKA_HOME requis",
+      "type": "process",
+      "command": "bash",
+      "args": ["${workspaceFolder}/scripts/start-kafka.sh"],
+      "windows": {
+        "command": "cmd.exe",
+        "args": ["/c", "${workspaceFolder}\\scripts\\start-kafka.cmd"]
+      },
+      "presentation": { "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "H2 : ouvrir la console",
+      "detail": "Service demarre requis ; utilisateur sa, mot de passe vide, JDBC URL affichee dans la liste",
+      "type": "process",
+      "command": "xdg-open",
+      "args": ["${input:h2Console}"],
+      "osx": {
+        "command": "open"
+      },
+      "windows": {
+        "command": "cmd.exe",
+        "args": ["/c", "start", "", "${input:h2Console}"]
+      },
+      "presentation": { "reveal": "never" },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "h2Console",
+      "type": "pickString",
+      "description": "Base H2 a ouvrir (copier la JDBC URL dans le formulaire de connexion)",
+      "options": [
+        {
+          "label": "orders :8081 - jdbc:h2:file:~/Users/jeanyves.ruffin/orderflow-data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL",
+          "value": "http://localhost:8081/h2-console"
+        },
+        {
+          "label": "inventory :8082 - jdbc:h2:file:~/Users/jeanyves.ruffin/orderflow-data/inventory;AUTO_SERVER=TRUE;MODE=PostgreSQL",
+          "value": "http://localhost:8082/h2-console"
+        },
+        {
+          "label": "payments :8083 - jdbc:h2:file:~/Users/jeanyves.ruffin/orderflow-data/payments;AUTO_SERVER=TRUE;MODE=PostgreSQL",
+          "value": "http://localhost:8083/h2-console"
+        }
+      ],
+      "default": "http://localhost:8081/h2-console"
+    }
+  ]
+}
