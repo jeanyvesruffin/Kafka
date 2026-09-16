@@ -114,7 +114,7 @@ et que tu vois les messages passer dans AKHQ.
 
 ### Phase 3 — Vérifier l'outbox et l'idempotence sous Kafka
 
-- [ ] Arrêter le broker, poster 3 commandes, le redémarrer → les 3 événements doivent partir
+- [x] Arrêter le broker, poster 3 commandes, le redémarrer → les 3 événements doivent partir
   (en mode Docker : `docker compose stop kafka`, puis `docker compose start kafka`)
 - [ ] Rejouer manuellement un message depuis AKHQ → le stock ne doit pas bouger deux fois
 
