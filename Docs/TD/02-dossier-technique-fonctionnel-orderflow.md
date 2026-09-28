@@ -554,7 +554,7 @@ micronaut:
         signatures:
           secret:
             generator:
-              secret: "QEkmFOOhy6Mgk9jlTzmGDvUrOQx1dvj7kaX"
+              secret: "<secret de 32 caractères minimum, à générer>"
 
 akhq:
   security:
