@@ -25,9 +25,42 @@
             <artifactId>spring-boot-starter-jackson</artifactId>
         </dependency>
 
+        <!-- Phase 7 : format Avro de orders.created. Les classes sont generees depuis src/main/avro
+             par avro-maven-plugin (voir plus bas). -->
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>${avro.version}</version>
+        </dependency>
+
+        <!-- Support Kafka partage (package fr.orderflow.common.kafka) : gestion d'erreurs, DLT,
+             correlationId. optional : chaque service declare deja spring-boot-starter-kafka et
+             actuator ; le module commun ne les impose pas a un futur service qui n'en voudrait pas. -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Auto-configuration Kafka de Boot 4 : DefaultKafkaProducerFactoryCustomizer -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -41,6 +74,42 @@
                 <configuration>
                     <skip>true</skip>
                 </configuration>
+            </plugin>
+            <!-- Phase 7 : schemas .avsc -> classes Java, a chaque build. Le schema COURANT vit dans
+                 src/main/avro ; les versions precedentes (necessaires pour lire d'anciens messages)
+                 sont conservees dans src/main/resources/avro/history et ne sont pas compilees. -->
+            <plugin>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro-maven-plugin</artifactId>
+                <version>${avro.version}</version>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>schema</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
+                            <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
+                            <stringType>String</stringType>
+                            <fieldVisibility>PRIVATE</fieldVisibility>
+                            <enableDecimalLogicalType>true</enableDecimalLogicalType>
+                            <dateTimeLogicalTypeImplementation>JSR310</dateTimeLogicalTypeImplementation>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- test-jar : les outils de test Kafka (KafkaTestSupport) sont reutilises par les services -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

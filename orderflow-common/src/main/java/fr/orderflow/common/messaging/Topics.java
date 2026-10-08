@@ -19,6 +19,29 @@ public final class Topics {
     public static final String PAYMENTS_COMPLETED = "payments.completed";
     public static final String PAYMENTS_FAILED = "payments.failed";
 
+    /**
+     * Suffixe des Dead Letter Topics : {@code <topic>.DLT} (phase 4).
+     */
+    public static final String DLT_SUFFIX = ".DLT";
+
     private Topics() {
+    }
+
+    /**
+     * Topics dont le contenu est en Avro sur le fil (phase 7). Les autres restent en JSON.
+     *
+     * <p>Le format du fil est une affaire de transport : l'outbox et les services metier manipulent
+     * toujours l'evenement (JSON dans l'outbox) ; la conversion se fait dans le publisher Kafka, et a
+     * l'autre bout dans le deserialiseur du consumer.
+     */
+    public static boolean isAvro(String topic) {
+        return ORDERS_CREATED.equals(topic);
+    }
+
+    /**
+     * Dead Letter Topic d'un topic source : {@code orders.created} -> {@code orders.created.DLT}.
+     */
+    public static String dltOf(String topic) {
+        return topic + DLT_SUFFIX;
     }
 }

@@ -45,6 +45,22 @@ X-Correlation-Id: corr-demo-stock-ko
   ]
 }
 
+### Commande avec code promotionnel (champ optionnel ajoute en version 2 du schema Avro, phase 7)
+POST http://localhost:8081/api/orders
+Content-Type: application/json
+X-Correlation-Id: corr-demo-coupon
+
+{
+  "customerId": "cust-118",
+  "items": [
+    {
+      "productId": "sku-001",
+      "quantity": 1
+    }
+  ],
+  "couponCode": "PROMO10"
+}
+
 ### Commande multi-lignes
 POST http://localhost:8081/api/orders
 Content-Type: application/json
@@ -77,3 +93,18 @@ GET http://localhost:8082/api/stock
 
 ### Sante des services
 GET http://localhost:8081/actuator/health
+
+### Phase 5 - metriques Prometheus d'un service (lag des consumers : kafka_consumer_fetch_manager_records_lag_max)
+GET http://localhost:8082/actuator/prometheus
+
+### Phase 5 - une metrique precise via Actuator (lag max des consumers d'inventory-service)
+GET http://localhost:8082/actuator/metrics/kafka.consumer.fetch.manager.records.lag.max
+
+### Phase 4 - nombre de messages envoyes en Dead Letter Topic (a surveiller : > 0 = intervention humaine)
+GET http://localhost:8083/actuator/metrics/orderflow.kafka.dlt
+
+### Phase 8 - tableau de bord temps reel (Kafka Streams) : commandes par statut
+GET http://localhost:8085/api/analytics/orders-by-status
+
+### Phase 8 - chiffre d'affaires cumule des paiements acceptes
+GET http://localhost:8085/api/analytics/revenue

@@ -3,6 +3,7 @@ package fr.orderflow.common.config;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.LoggingEventPublisher;
+import fr.orderflow.common.messaging.avro.OrderCreatedAvroCodec;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -50,6 +51,14 @@ public class MessagingConfig {
     @Bean
     public EventSerializer eventSerializer(JsonMapper jsonMapper) {
         return new EventSerializer(jsonMapper);
+    }
+
+    /**
+     * Codec Avro de {@code orders.created} (phase 7). Les autres evenements restent en JSON.
+     */
+    @Bean
+    public OrderCreatedAvroCodec orderCreatedAvroCodec() {
+        return new OrderCreatedAvroCodec();
     }
 
     /**

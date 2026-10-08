@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: analytics-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    admin:
+      fail-fast: true               # cree ses topics au demarrage, echoue si le broker est absent
+    streams:
+      application-id: orderflow-analytics
+      # Kafka Streams stocke son etat dans RocksDB, dont la bibliotheque native est extraite au
+      # demarrage. Sur un poste bride, le repertoire temporaire peut etre bloque : on le redirige
+      # dans le repertoire utilisateur (dossier technique, phase 8).
+      state-dir: ${user.home}/orderflow-data/streams
+      properties:
+        # Phase 9 : chaque message est lu, agrege et ecrit dans une transaction Kafka ; un crash en
+        # plein traitement n'ajoute ni ne perd rien. Sur un broker mono-noeud, exige
+        # transaction.state.log.replication.factor=1 et transaction.state.log.min.isr=1.
+        processing.guarantee: exactly_once_v2
+        # Un message illisible n'arrete pas l'application : il est journalise puis envoye en DLQ.
+        deserialization.exception.handler: org.apache.kafka.streams.errors.LogAndContinueExceptionHandler
+        errors.dead.letter.queue.topic.name: orderflow-analytics.DLT
+        # Un service qui demarre apres les autres doit rejouer tout l'historique
+        auto.offset.reset: earliest
+
+server:
+  port: 8085
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  tracing:
+    sampling:
+      probability: 1.0              # TD : on trace tout (0.1 par defaut)
+    export:
+      otlp:
+        enabled: ${ORDERFLOW_TRACING_EXPORT:false}   # true si un collecteur OTLP ecoute (voir README, phase 5)
+  otlp:
+    metrics:
+      export:
+        enabled: false              # metriques en pull sur /actuator/prometheus, pas d'export OTLP
+  logging:
+    export:
+      otlp:
+        enabled: false
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  pattern:
+    correlation: "[%X{traceId:-},%X{spanId:-},%X{correlationId:-}] "
+  level:
+    fr.orderflow: DEBUG

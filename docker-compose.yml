@@ -9,16 +9,30 @@
 #   docker compose down
 #   docker compose down -v
 #
-# Memes ports que le mode sans droits admin (9092, 8081-8084, 8090) :
+# Memes ports que le mode sans droits admin (9092, 8081-8085, 8090) :
 # ne pas faire tourner les deux modes en meme temps.
 # ============================================================
 name: orderflow
 
+# H2 en mode fichier n'ecrit sur disque que toutes les 500 ms par defaut (WRITE_DELAY) : un arret brutal
+# (docker kill, coupure de courant) perd les derniers commits, alors que l'offset Kafka ou la reponse HTTP
+# 201 sont deja partis. WRITE_DELAY=0 force l'ecriture a chaque commit (voir README, phase 9, chaos).
 x-service-env: &service-env
   # Listener interne du broker ; localhost:9092 est reserve a l'hote
   SPRING_KAFKA_BOOTSTRAPSERVERS: kafka:29092
   # La console H2 refuse par defaut les connexions qui ne viennent pas de localhost
   SPRING_H2_CONSOLE_SETTINGS_WEBALLOWOTHERS: "true"
+  # Phase 5 : export des traces vers Jaeger, uniquement si on le demande :
+  #   ORDERFLOW_TRACING_EXPORT=true docker compose --profile tracing up -d
+  ORDERFLOW_TRACING_EXPORT: ${ORDERFLOW_TRACING_EXPORT:-false}
+  MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+  # Phase 9 : delai apres lequel le broker declare mort un consumer tue brutalement (SIGKILL) et reaffecte
+  # ses partitions. 45 s par defaut chez Kafka : c'est le temps de reprise apres un arret brutal.
+  #   ORDERFLOW_KAFKA_SESSION_TIMEOUT_MS=10000 docker compose up -d   (essai de reprise plus rapide)
+  SPRING_KAFKA_CONSUMER_PROPERTIES_SESSION_TIMEOUT_MS: ${ORDERFLOW_KAFKA_SESSION_TIMEOUT_MS:-45000}
+  # Phase 9 : threads virtuels (listeners Kafka, Tomcat, taches planifiees). A mesurer, pas par defaut :
+  #   ORDERFLOW_VIRTUAL_THREADS=true docker compose up -d
+  SPRING_THREADS_VIRTUAL_ENABLED: ${ORDERFLOW_VIRTUAL_THREADS:-false}
 
 services:
 
@@ -75,6 +89,15 @@ services:
               properties:
                 bootstrap.servers: "kafka:29092"
 
+  # --- Jaeger : visualiser les traces distribuees (phase 5, optionnel) ------
+  # Demarre uniquement avec le profil "tracing" : http://localhost:16686
+  jaeger:
+    profiles: ["tracing"]
+    image: jaegertracing/jaeger:2.21.0
+    ports:
+      - "16686:16686"   # interface web
+      - "4318:4318"     # OTLP/HTTP, pour les services lances hors Docker (IDE, mvn)
+
   # --- Services OrderFlow (image construite par la Dockerfile racine) -------
   order-service:
     build:
@@ -89,7 +112,7 @@ services:
       - "8081:8081"
     environment:
       <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/orders;AUTO_SERVER=TRUE;MODE=PostgreSQL;WRITE_DELAY=0
     volumes:
       - orders-data:/data
 
@@ -106,7 +129,7 @@ services:
       - "8082:8082"
     environment:
       <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/inventory;AUTO_SERVER=TRUE;MODE=PostgreSQL
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/inventory;AUTO_SERVER=TRUE;MODE=PostgreSQL;WRITE_DELAY=0
     volumes:
       - inventory-data:/data
 
@@ -123,7 +146,12 @@ services:
       - "8083:8083"
     environment:
       <<: *service-env
-      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/payments;AUTO_SERVER=TRUE;MODE=PostgreSQL
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/payments;AUTO_SERVER=TRUE;MODE=PostgreSQL;WRITE_DELAY=0
+      # Phase 4 : panne transitoire simulee du prestataire (les N premiers appels de chaque commande echouent)
+      #   2 -> le message passe par inventory.reserved-retry-0 et -retry-1 puis aboutit
+      #   3 ou plus -> il finit sur inventory.reserved.DLT
+      # Exemple : ORDERFLOW_PAYMENT_TRANSIENT_FAILURES=2 docker compose up -d payment-service
+      ORDERFLOW_PAYMENT_TRANSIENTFAILURESPERORDER: ${ORDERFLOW_PAYMENT_TRANSIENT_FAILURES:-0}
     volumes:
       - payments-data:/data
 
@@ -141,8 +169,28 @@ services:
     environment:
       <<: *service-env
 
+  # --- Analytics (phase 8, bonus) : agregats temps reel avec Kafka Streams -------
+  analytics-service:
+    build:
+      context: .
+      args:
+        SERVICE: analytics-service
+    image: orderflow/analytics-service:0.1.0-SNAPSHOT
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      <<: *service-env
+      # Etat RocksDB de Kafka Streams, dans un volume : reconstructible depuis les topics changelog
+      SPRING_KAFKA_STREAMS_STATEDIR: /data/streams
+    volumes:
+      - analytics-data:/data
+
 volumes:
   kafka-data:
   orders-data:
   inventory-data:
   payments-data:
+  analytics-data:

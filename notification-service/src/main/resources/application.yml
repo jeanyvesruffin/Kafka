@@ -3,8 +3,20 @@ spring:
     name: notification-service
 
   kafka:
+    admin:
+      fail-fast: true               # cree ses topics DLT au demarrage, echoue si le broker est absent
+    listener:
+      observation-enabled: true     # span consumer + lecture du traceparent (phase 5)
+    template:
+      observation-enabled: true     # span producer + ecriture du traceparent dans les en-tetes
     consumer:
       auto-offset-reset: earliest
+      # Une erreur de deserialisation part en DLT au lieu de faire boucler le consumer (phase 4)
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
 
 server:
   port: 8084
@@ -12,13 +24,37 @@ server:
 orderflow:
   messaging:
     publisher: kafka
+  kafka:
+    retry:
+      blocking:
+        initial-interval: 200ms
+        multiplier: 2.0
+        max-interval: 2s
+        max-retries: 4
 
 management:
   endpoints:
     web:
       exposure:
         include: health, info, metrics, prometheus
+  tracing:
+    sampling:
+      probability: 1.0              # TD : on trace tout (0.1 par defaut)
+    export:
+      otlp:
+        enabled: ${ORDERFLOW_TRACING_EXPORT:false}   # true si un collecteur OTLP ecoute (voir README, phase 5)
+  otlp:
+    metrics:
+      export:
+        enabled: false              # metriques en pull sur /actuator/prometheus, pas d'export OTLP
+  logging:
+    export:
+      otlp:
+        enabled: false
 
 logging:
+  pattern:
+    # traceId/spanId : tracing distribue ; correlationId : celui de la commande (en-tete Kafka -> MDC)
+    correlation: "[%X{traceId:-},%X{spanId:-},%X{correlationId:-}] "
   level:
     fr.orderflow: DEBUG

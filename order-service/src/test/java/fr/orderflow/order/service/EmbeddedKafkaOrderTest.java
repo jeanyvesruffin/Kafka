@@ -5,6 +5,8 @@ import fr.orderflow.common.messaging.EventEnvelope;
 import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
+import fr.orderflow.common.messaging.avro.OrderCreatedAvroCodec;
+import fr.orderflow.common.test.KafkaTestSupport;
 import fr.orderflow.order.api.CreateOrderRequest;
 import fr.orderflow.order.api.OrderResponse;
 import fr.orderflow.order.domain.OrderEntity;
@@ -27,6 +29,7 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.annotation.DirtiesContext;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -92,18 +95,21 @@ class EmbeddedKafkaOrderTest {
     }
 
     @Test
-    @DisplayName("Le relais d'outbox publie OrderCreated sur orders.created (cle = orderId, en-tetes compris)")
-    void outboxRelay_publishesOrderCreated() {
+    @DisplayName("Le relais d'outbox publie OrderCreated sur orders.created en AVRO (cle = orderId, en-tetes compris)")
+    void outboxRelay_publishesOrderCreated() throws IOException {
         OrderEntity order = newOrder();
 
         outboxRelay.publishPending();
 
-        ConsumerRecord<String, String> record = awaitRecord(Topics.ORDERS_CREATED, order.getId());
-        assertThat(header(record, EventHeaders.CORRELATION_ID)).isEqualTo(CID);
-        assertThat(header(record, EventHeaders.EVENT_TYPE)).isEqualTo(OrderCreatedEvent.TYPE);
-        OrderCreatedEvent event = eventSerializer.fromJson(record.value(), OrderCreatedEvent.class);
+        // orders.created est en Avro depuis la phase 7 : on lit les octets, pas du texte
+        ConsumerRecord<String, byte[]> record = new KafkaTestSupport(brokers).awaitRecord(Topics.ORDERS_CREATED, order.getId());
+        assertThat(KafkaTestSupport.header(record, EventHeaders.CORRELATION_ID)).isEqualTo(CID);
+        assertThat(KafkaTestSupport.header(record, EventHeaders.EVENT_TYPE)).isEqualTo(OrderCreatedEvent.TYPE);
+        assertThat(KafkaTestSupport.header(record, EventHeaders.CONTENT_TYPE)).isEqualTo("application/avro");
+        OrderCreatedEvent event = new OrderCreatedAvroCodec().decode(record.value());
         assertThat(event.customerId()).isEqualTo("cust-118");
         assertThat(event.totalAmount()).isEqualByComparingTo("39.80");
+        assertThat(event.couponCode()).isNull();
         assertThat(outboxRows(order.getId(), OrderCreatedEvent.TYPE))
                 .extracting(OutboxEventEntity::isPublished)
                 .containsExactly(true);

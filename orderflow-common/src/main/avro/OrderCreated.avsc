@@ -1,0 +1,29 @@
+{
+  "type": "record",
+  "name": "OrderCreated",
+  "namespace": "fr.orderflow.common.avro",
+  "doc": "Evenement OrderCreated, topic orders.created. Version 2 : ajout du champ optionnel couponCode (union [null, string], defaut null), compatible BACKWARD et FORWARD avec la version 1 (voir avro/history).",
+  "fields": [
+    {"name": "eventId", "type": "string", "doc": "Identifiant unique de l'evenement, cle de l'idempotence cote consommateur."},
+    {"name": "orderId", "type": "string"},
+    {"name": "customerId", "type": "string"},
+    {
+      "name": "items",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OrderCreatedLine",
+          "fields": [
+            {"name": "productId", "type": "string"},
+            {"name": "quantity", "type": "int"},
+            {"name": "unitPrice", "type": {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}}
+          ]
+        }
+      }
+    },
+    {"name": "totalAmount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}},
+    {"name": "occurredAt", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "couponCode", "type": ["null", "string"], "default": null, "doc": "Ajoute en version 2. Optionnel : absent des messages de version 1."}
+  ]
+}

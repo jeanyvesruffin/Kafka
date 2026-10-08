@@ -81,9 +81,12 @@ public class OrderService {
                         .toString(), line.productId(), line.quantity(), line.unitPrice())));
         orderRepository.save(order);
 
+        // Un coupon vide ou blanc vaut "pas de coupon" : on ne transporte pas de chaine vide
+        String couponCode = request.couponCode() == null || request.couponCode().isBlank()
+                ? null : request.couponCode().strip();
         appendToOutbox(
                 Topics.ORDERS_CREATED, new OrderCreatedEvent(
-                        newEventId(), orderId, request.customerId(), lines, total, now), correlationId);
+                        newEventId(), orderId, request.customerId(), lines, total, now, couponCode), correlationId);
 
         log.info("Commande creee orderId={} total={} correlationId={}", orderId, total, correlationId);
         return order;

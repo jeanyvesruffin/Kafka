@@ -41,6 +41,15 @@
       "projectName": "notification-service",
       "cwd": "${workspaceFolder}/notification-service",
       "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
+    },
+    {
+      "type": "java",
+      "name": "analytics-service :8085",
+      "request": "launch",
+      "mainClass": "fr.orderflow.analytics.AnalyticsApplication",
+      "projectName": "analytics-service",
+      "cwd": "${workspaceFolder}/analytics-service",
+      "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
     }
   ],
   "compounds": [
@@ -50,7 +59,8 @@
         "order-service :8081",
         "inventory-service :8082",
         "payment-service :8083",
-        "notification-service :8084"
+        "notification-service :8084",
+        "analytics-service :8085"
       ],
       "stopAll": true
     }

@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # ============================================================
 # Image d'un service OrderFlow - mode AVEC droits administrateur.
-# Une seule Dockerfile pour les 4 services, choisi par l'argument SERVICE :
+# Une seule Dockerfile pour tous les services, choisi par l'argument SERVICE :
 #   docker build --build-arg SERVICE=order-service -t orderflow/order-service .
 # En pratique, c'est docker-compose.yml qui la pilote.
 # ============================================================
 
 # --- Etape 1 : build Maven du reacteur complet ------------------------------
-# Identique pour les 4 images : BuildKit ne l'execute qu'une fois.
+# Identique pour toutes les images : BuildKit ne l'execute qu'une fois.
 # Les tests ne tournent pas ici (mvn verify, cf. README). Les pom.xml ne
 # declarent pas spring-boot-maven-plugin : repackage est appele explicitement
 # pour obtenir des JAR executables (orderflow-common le saute, skip=true).

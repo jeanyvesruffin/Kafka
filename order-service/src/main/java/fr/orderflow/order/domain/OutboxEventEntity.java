@@ -1,5 +1,6 @@
 package fr.orderflow.order.domain;
 
+import fr.orderflow.order.tracing.OutboxTraceListener;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -18,6 +19,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "outbox_event",
         indexes = @Index(name = "idx_outbox_unpublished", columnList = "published, created_at"))
+@EntityListeners(OutboxTraceListener.class)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OutboxEventEntity {
@@ -51,6 +53,14 @@ public class OutboxEventEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /**
+     * Contexte de trace W3C ({@code traceparent}) de la requete ou du message qui a produit cet
+     * evenement. Null si le tracing est inactif. Le relais le restaure a la publication, pour que la
+     * trace ne s'arrete pas a l'outbox.
+     */
+    @Column(name = "trace_parent", length = 128)
+    private String traceParent;
+
     @Column(name = "published", nullable = false)
     private boolean published;
 
@@ -68,6 +78,10 @@ public class OutboxEventEntity {
         this.correlationId = correlationId;
         this.createdAt = createdAt;
         this.published = false;
+    }
+
+    public void attachTraceParent(String traceParent) {
+        this.traceParent = traceParent;
     }
 
     public void markPublished(Instant now) {

@@ -19,11 +19,23 @@ public class OrderEventListener {
     private final InventoryService inventoryService;
     private final EventSerializer eventSerializer;
 
-    @KafkaListener(topics = Topics.ORDERS_CREATED, groupId = "inventory-service")
-    public void onOrderCreated(@Payload String payload,
+    /**
+     * {@code orders.created} est en <b>Avro</b> (phase 7) : ce listener recoit directement l'evenement
+     * type, decode par {@link fr.orderflow.common.kafka.OrderCreatedAvroDeserializer}.
+     *
+     * <p>Les {@code properties} remplacent, pour ce seul listener, le deserialiseur de valeur de
+     * l'{@code application.yml} (String). Le deserialiseur reste enveloppe dans un
+     * {@code ErrorHandlingDeserializer} : un message illisible (JSON de l'ancien format, octets
+     * corrompus, schema inconnu) ne bloque pas le consumer, il est envoye sur {@code orders.created.DLT}
+     * avec ses octets d'origine.
+     */
+    @KafkaListener(topics = Topics.ORDERS_CREATED, groupId = "inventory-service",
+            properties = {
+                    "value.deserializer=org.springframework.kafka.support.serializer.ErrorHandlingDeserializer",
+                    "spring.deserializer.value.delegate.class=fr.orderflow.common.kafka.OrderCreatedAvroDeserializer"})
+    public void onOrderCreated(@Payload OrderCreatedEvent event,
                                @Header(EventHeaders.CORRELATION_ID) String correlationId) {
-        inventoryService.handleOrderCreated(
-                eventSerializer.fromJson(payload, OrderCreatedEvent.class), correlationId);
+        inventoryService.handleOrderCreated(event, correlationId);
     }
 
     @KafkaListener(topics = Topics.ORDERS_CANCELLED, groupId = "inventory-service")
