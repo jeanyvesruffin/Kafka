@@ -1,0 +1,28 @@
+{
+  "type": "record",
+  "name": "OrderCreated",
+  "namespace": "fr.orderflow.common.avro",
+  "doc": "Evenement OrderCreated, topic orders.created. Version 1 : sans couponCode. Conservee pour lire les messages deja ecrits et pour verifier la compatibilite de la version courante (src/main/avro).",
+  "fields": [
+    {"name": "eventId", "type": "string", "doc": "Identifiant unique de l'evenement, cle de l'idempotence cote consommateur."},
+    {"name": "orderId", "type": "string"},
+    {"name": "customerId", "type": "string"},
+    {
+      "name": "items",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OrderCreatedLine",
+          "fields": [
+            {"name": "productId", "type": "string"},
+            {"name": "quantity", "type": "int"},
+            {"name": "unitPrice", "type": {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}}
+          ]
+        }
+      }
+    },
+    {"name": "totalAmount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}},
+    {"name": "occurredAt", "type": {"type": "long", "logicalType": "timestamp-millis"}}
+  ]
+}

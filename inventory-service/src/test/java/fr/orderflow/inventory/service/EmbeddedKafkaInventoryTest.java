@@ -5,6 +5,8 @@ import fr.orderflow.common.messaging.EventEnvelope;
 import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventSerializer;
 import fr.orderflow.common.messaging.Topics;
+import fr.orderflow.common.test.KafkaTestSupport;
+import fr.orderflow.common.test.OrderCreatedMessages;
 import fr.orderflow.inventory.domain.StockEntity;
 import fr.orderflow.inventory.repository.StockRepository;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -173,6 +175,11 @@ class EmbeddedKafkaInventoryTest {
      * Publie l'evenement tel que le ferait order-service : cle = orderId, en-tetes standards.
      */
     private void publish(String topic, OrderFlowEvent event) {
+        if (event instanceof OrderCreatedEvent created) {
+            // orders.created est en Avro depuis la phase 7
+            OrderCreatedMessages.publish(new KafkaTestSupport(brokers), created, CID);
+            return;
+        }
         EventEnvelope envelope = eventSerializer.envelope(topic, event, CID);
         var record = new ProducerRecord<>(envelope.topic(), envelope.key(), envelope.payload());
         envelope.headers()

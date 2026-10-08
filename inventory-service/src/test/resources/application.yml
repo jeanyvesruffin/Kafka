@@ -15,7 +15,18 @@ spring:
   kafka:
     consumer:
       auto-offset-reset: earliest
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
 
 orderflow:
   messaging:
     publisher: kafka
+  kafka:
+    retry:
+      blocking:
+        initial-interval: 50ms
+        max-interval: 200ms
+        max-retries: 3

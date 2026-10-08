@@ -9,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -19,19 +18,18 @@ public class OrderController {
     private final OrderService orderService;
 
     /**
-     * Le {@code correlationId} entre par l'en-tete HTTP s'il est fourni, sinon
-     * il est genere ici. C'est lui qui suivra la commande sur tout le parcours
+     * Le {@code correlationId} entre par l'en-tete HTTP {@code X-Correlation-Id} s'il est fourni et
+     * acceptable, sinon il est genere. {@link CorrelationIdFilter} s'en charge, le met dans le MDC des
+     * logs et le renvoie dans la reponse. C'est lui qui suivra la commande sur tout le parcours
      * evenementiel : c'est la base de la tracabilite (NF-04).
      */
     @PostMapping
     public ResponseEntity<OrderResponse> create(
             @Valid @RequestBody CreateOrderRequest request,
-            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
+            @RequestAttribute(CorrelationIdFilter.REQUEST_ATTRIBUTE) String cid) {
 
-        String cid = correlationId != null ? correlationId : "corr-" + UUID.randomUUID();
         var order = orderService.createOrder(request, cid);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .header("X-Correlation-Id", cid)
                 .body(OrderResponse.from(order));
     }
 

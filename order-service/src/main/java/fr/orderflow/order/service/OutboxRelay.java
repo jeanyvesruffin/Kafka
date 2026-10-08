@@ -1,12 +1,15 @@
 package fr.orderflow.order.service;
 
+import fr.orderflow.common.messaging.CorrelationId;
 import fr.orderflow.common.messaging.EventEnvelope;
 import fr.orderflow.common.messaging.EventHeaders;
 import fr.orderflow.common.messaging.EventPublisher;
 import fr.orderflow.order.domain.OutboxEventEntity;
 import fr.orderflow.order.repository.OutboxEventRepository;
+import fr.orderflow.order.tracing.OutboxTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.data.domain.Limit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -44,6 +47,7 @@ public class OutboxRelay {
     private final OutboxEventRepository outboxRepository;
     private final EventPublisher eventPublisher;
     private final Clock clock;
+    private final OutboxTracing tracing;
 
     @Scheduled(fixedDelayString = "${orderflow.outbox.poll-interval-ms:1000}")
     @Transactional
@@ -55,9 +59,19 @@ public class OutboxRelay {
         }
 
         for (OutboxEventEntity row : pending) {
+            // Le relais tourne hors de toute requete : sans cela, ses logs n'auraient pas de
+            // correlationId. On met celui de la ligne, le temps de sa publication.
+            if (row.getCorrelationId() != null) {
+                MDC.put(CorrelationId.MDC_KEY, row.getCorrelationId());
+            }
             try {
-                eventPublisher.publish(toEnvelope(row));
-                row.markPublished(clock.instant());
+                // Span enfant du contexte memorise a l'ecriture de la ligne : la trace de la requete
+                // (ou du message) d'origine continue jusqu'a Kafka et aux services suivants.
+                tracing.runInSpan(row.getTraceParent(), "outbox publish", () -> {
+                    eventPublisher.publish(toEnvelope(row));
+                    row.markPublished(clock.instant());
+                    log.debug("Evenement publie eventId={} topic={}", row.getEventId(), row.getTopic());
+                });
             } catch (RuntimeException e) {
                 // On s'arrete au premier echec pour preserver l'ordre des
                 // evenements d'une meme commande. Le lot repartira au tour suivant.
@@ -65,6 +79,8 @@ public class OutboxRelay {
                         "Publication echouee eventId={} topic={} : {}. Nouvel essai au prochain cycle.",
                         row.getEventId(), row.getTopic(), e.getMessage());
                 break;
+            } finally {
+                MDC.remove(CorrelationId.MDC_KEY);
             }
         }
     }

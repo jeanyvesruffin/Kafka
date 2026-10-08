@@ -23,6 +23,8 @@
         <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
+        <!-- Phase 7 : Avro n'est pas gere par le BOM de Spring Boot -->
+        <avro.version>1.12.2</avro.version>
     </properties>
 
     <modules>
@@ -31,6 +33,7 @@
         <module>inventory-service</module>
         <module>payment-service</module>
         <module>notification-service</module>
+        <module>analytics-service</module>
     </modules>
 
     <dependencyManagement>
@@ -39,6 +42,14 @@
                 <groupId>fr.orderflow</groupId>
                 <artifactId>orderflow-common</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <!-- Outils des tests Kafka (KafkaTestSupport) : a declarer en scope test dans les services -->
+            <dependency>
+                <groupId>fr.orderflow</groupId>
+                <artifactId>orderflow-common</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

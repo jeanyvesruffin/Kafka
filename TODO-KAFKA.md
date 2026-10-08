@@ -97,35 +97,69 @@ AKHQ : `http://localhost:8090`. Kafka reste joignable depuis le poste sur `local
 
 **Validé quand** : commander `sku-001 x2` aboutit à `CONFIRMED`, et commander `sku-005 x1` (1250,00 € > plafond) aboutit à `CANCELLED` **avec le stock libéré**.
 
+<a id="phase-3"></a>
+
 ### Phase 3 — Vérifier l'outbox et l'idempotence sous Kafka
 
 - [x] Arrêter le broker, poster 3 commandes, le redémarrer → les 3 événements doivent partir (en mode Docker : `docker compose stop kafka`, puis `docker compose start kafka`)
-- [ ] Rejouer manuellement un message depuis AKHQ → le stock ne doit pas bouger deux fois
+- [x] Rejouer manuellement un message depuis AKHQ → le stock ne doit pas bouger deux fois
 
 Rien à coder ici : les garanties sont déjà en place. L'exercice est de **prouver qu'elles tiennent** face à un vrai broker.
 
+<a id="phase-4"></a>
+
 ### Phase 4 — Retry et Dead Letter Topic
 
-- [ ] `ErrorHandlingDeserializer` sur tous les consumers
-- [ ] `DefaultErrorHandler` ou `@RetryableTopic` avec backoff exponentiel
-- [ ] Classer les exceptions : `DeserializationException` → DLT immédiat, `OptimisticLockingFailureException` → retryable
-- [ ] Injecter une panne transitoire dans `PaymentGatewaySimulator` pour observer les retries
+- [x] `ErrorHandlingDeserializer` sur tous les consumers
+- [x] `DefaultErrorHandler` ou `@RetryableTopic` avec backoff exponentiel
+- [x] Classer les exceptions : `DeserializationException` → DLT immédiat, `OptimisticLockingFailureException` → retryable
+- [x] Injecter une panne transitoire dans `PaymentGatewaySimulator` pour observer les retries
+
+**Validé quand** : un payload corrompu finit dans la DLT sans bloquer les autres messages, et une panne transitoire du paiement se résout après passage par `inventory.reserved-retry-0` et `-retry-1`. Détail : [README, phase 4](README.md#phase-4--retry-et-dead-letter-topic).
+
+<a id="phase-5"></a>
 
 ### Phase 5 — Observabilité
 
-- [ ] Propager le `correlationId` de l'en-tête Kafka vers le MDC
-- [ ] Vérifier le lag des consumer groups via `/actuator/metrics` et AKHQ
-- [ ] Brancher le tracing (l'instrumentation Kafka est automatique en Boot 4.1)
+- [x] Propager le `correlationId` de l'en-tête Kafka vers le MDC
+- [x] Vérifier le lag des consumer groups via `/actuator/metrics` et AKHQ
+- [x] Brancher le tracing (l'instrumentation Kafka est automatique en Boot 4.1)
+
+**Validé quand** : une commande est traçable de bout en bout via son `correlationId` dans les logs des services. Détail : [README, phase 5](README.md#phase-5--observabilité).
+
+> L'instrumentation Kafka n'est « automatique » qu'une fois activée : `spring.kafka.template.observation-enabled` et `spring.kafka.listener.observation-enabled` valent `false` par défaut.
+
+<a id="phase-7"></a>
 
 ### Phase 7 — Avro
 
-- [ ] `avro-maven-plugin`, schémas `.avsc` dans `orderflow-common`
-- [ ] Remplacer `EventSerializer` par une variante Avro
-- [ ] Ajouter un champ optionnel et vérifier la compatibilité `BACKWARD`
+- [x] `avro-maven-plugin`, schémas `.avsc` dans `orderflow-common`
+- [x] Remplacer `EventSerializer` par une variante Avro (pour `orders.created`, topic migré ; les six autres restent en JSON)
+- [x] Ajouter un champ optionnel et vérifier la compatibilité `BACKWARD`
 
-### Phases 8-9 — Bonus
+**Validé quand** : un consommateur à jour lit les messages d'un producteur resté sur l'ancien schéma (et inversement). Plan B retenu (sans registre de schémas). Détail : [README, phase 7](README.md#phase-7--avro).
 
-Kafka Streams, exactly-once transactionnel, chaos testing, virtual threads.
+<a id="phase-8"></a>
+
+### Phase 8 — Kafka Streams (bonus)
+
+- [x] Service `analytics-service` (`:8085`) : commandes par statut et chiffre d'affaires en temps réel
+- [x] Agrégats **idempotents** (KTable par commande), indépendants de l'ordre d'arrivée entre topics
+- [x] Interrogation des state stores par API REST (`/api/analytics/*`)
+- [x] Message illisible → DLQ au lieu d'arrêter l'application
+- [x] Compteurs identiques après rejeu du topic depuis le début
+
+Détail : [README, phase 8](README.md#phase-8--kafka-streams-bonus).
+
+<a id="phase-9"></a>
+
+### Phase 9 — Exactly-once, chaos testing, virtual threads (bonus)
+
+- [x] Exactly-once transactionnel (`exactly_once_v2`) pour le flux Kafka → Kafka d'Analytics
+- [x] Chaos testing : arrêts brutaux (`SIGKILL`) des services et du broker pendant une charge, invariants vérifiés
+- [x] Virtual threads : mesure avant / après
+
+Détail : [README, phase 9](README.md#phase-9--exactly-once-chaos-testing-virtual-threads-bonus).
 
 ---
 
